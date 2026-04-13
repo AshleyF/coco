@@ -2,6 +2,8 @@
 
 A TRS-80 Color Computer II emulator in plain JavaScript. No build tools, no dependencies — just open it in a browser.
 
+**[▶ Run the emulator](https://ashleyf.github.io/coco/)**
+
 ## Quick Start
 
 ```
