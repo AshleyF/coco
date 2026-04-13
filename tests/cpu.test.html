@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CoCo II — CPU Tests</title>
+    <style>
+        body { background: #1a1a2e; color: #e0e0e0; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; padding: 1em 2em; }
+        h1 { color: #0f0; font-size: 1.2em; }
+        #output { white-space: pre; line-height: 1.5; }
+        .pass { color: #4caf50; }
+        .fail { color: #f44336; font-weight: bold; }
+        .suite { color: #64b5f6; font-weight: bold; margin-top: 0.5em; }
+        .summary-pass { color: #4caf50; font-weight: bold; font-size: 1.1em; margin-top: 1em; }
+        .summary-fail { color: #f44336; font-weight: bold; font-size: 1.1em; margin-top: 1em; }
+    </style>
+</head>
+<body>
+    <h1>MC6809E CPU Tests</h1>
+    <div id="output"></div>
+    <script type="module" src="cpu.test.js"></script>
+</body>
+</html>

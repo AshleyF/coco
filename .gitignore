@@ -1,0 +1,5 @@
+media/
+roms/*
+!roms/bas13.rom
+!roms/extbas11.rom
+!roms/README.md

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>CoCo II Emulator</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #0f0;
+            font-family: monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overscroll-behavior: none;
+        }
+        h1 { font-size: 1.1em; margin: 0.4em 0 0.2em; color: #0c0; }
+
+        /* Screen */
+        #screen-wrap {
+            width: 100%;
+            max-width: 540px;
+            padding: 0 4px;
+        }
+        #screen {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            border: 2px solid #0a0;
+            image-rendering: pixelated;
+            background: #000;
+            display: block;
+        }
+
+        /* Status */
+        #status {
+            font-size: 0.78em;
+            color: #0a0;
+            padding: 0.2em 0.5em;
+            max-width: 540px;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 3px;
+            max-width: 540px;
+            width: 100%;
+            padding: 0 4px;
+        }
+        .controls button {
+            font-family: monospace;
+            font-size: 0.72em;
+            padding: 0.35em 0.55em;
+            background: #333;
+            color: #0f0;
+            border: 1px solid #555;
+            border-radius: 3px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .controls button:active { background: #0a0; color: #000; }
+        .sep { color: #444; align-self: center; font-size: 0.7em; }
+
+        /* Status bar: tape + joystick */
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 1em;
+            max-width: 540px;
+            width: 100%;
+            padding: 0.2em 4px;
+            font-size: 0.72em;
+            color: #666;
+        }
+        .joy-group {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .joy-group canvas { border: 1px solid #333; background: #111; }
+        .joy-label { font-size: 0.8em; color: #555; }
+
+        /* On-screen CoCo keyboard */
+        #keyboard-wrap {
+            width: 100%;
+            max-width: 540px;
+            padding: 4px;
+            display: none;
+        }
+        #keyboard-wrap.visible { display: block; }
+        .kb-row {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 2px;
+        }
+        .kb-key {
+            flex: 1;
+            height: 40px;
+            background: #2a2a2a;
+            color: #0d0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .kb-key:active, .kb-key.active {
+            background: #0a0;
+            color: #000;
+            border-color: #0f0;
+        }
+        .kb-key.wide { flex: 1.4; }
+        .kb-key.wider { flex: 1.8; }
+        .kb-key.space { flex: 4; }
+
+        /* FPS */
+        #fps {
+            position: fixed; top: 3px; right: 6px;
+            color: #444; font-size: 10px; font-family: monospace;
+        }
+
+        .hidden { display: none; }
+
+        @media (min-width: 600px) {
+            body { padding-top: 0.5em; }
+            .kb-key { height: 36px; font-size: 0.78em; }
+        }
+    </style>
+</head>
+<body>
+    <h1>TRS-80 Color Computer II</h1>
+
+    <div id="screen-wrap">
+        <canvas id="screen" width="256" height="192"></canvas>
+    </div>
+
+    <div id="status">Awaiting ROM...</div>
+
+    <div class="controls">
+        <button id="reset">⟲</button>
+        <button id="soundToggle">🔇</button>
+        <button id="kbToggle" title="On-screen keyboard">⌨</button>
+        <span class="sep">│</span>
+        <button id="loadRom">ROM</button>
+        <button id="loadCart">Cart</button>
+        <button id="ejectCart">Eject</button>
+        <span class="sep">│</span>
+        <button id="loadTape">Tape</button>
+        <button id="recordTape" title="Record">⏺</button>
+        <button id="saveTapeCAS">CAS</button>
+        <button id="saveTapeWAV">WAV</button>
+        <button id="pasteCode">📋</button>
+    </div>
+
+    <input type="file" id="romFile" accept=".rom,.bin" multiple class="hidden">
+    <input type="file" id="tapeFile" accept=".cas,.c10" class="hidden">
+    <input type="file" id="cartFile" accept=".rom,.bin,.ccc" class="hidden">
+
+    <div class="status-bar">
+        <div>
+            <span id="tape-label">🎵 empty</span>
+            <span id="tape-motor" style="margin-left:0.5em;">⏹</span>
+            <span id="tape-pct" style="margin-left:0.5em;"></span>
+        </div>
+        <div class="joy-group">
+            <canvas id="joy-right" width="40" height="40"></canvas>
+            <span id="joy-right-pos" class="joy-label">R</span>
+            <canvas id="joy-left" width="40" height="40"></canvas>
+            <span id="joy-left-pos" class="joy-label">L</span>
+        </div>
+    </div>
+
+    <div id="keyboard-wrap">
+        <div class="kb-row">
+            <div class="kb-key" data-key="1">1</div>
+            <div class="kb-key" data-key="2">2</div>
+            <div class="kb-key" data-key="3">3</div>
+            <div class="kb-key" data-key="4">4</div>
+            <div class="kb-key" data-key="5">5</div>
+            <div class="kb-key" data-key="6">6</div>
+            <div class="kb-key" data-key="7">7</div>
+            <div class="kb-key" data-key="8">8</div>
+            <div class="kb-key" data-key="9">9</div>
+            <div class="kb-key" data-key="0">0</div>
+            <div class="kb-key" data-key=":">:</div>
+            <div class="kb-key" data-key="-">-</div>
+            <div class="kb-key wide" data-key="BREAK">BRK</div>
+        </div>
+        <div class="kb-row">
+            <div class="kb-key" data-key="Q">Q</div>
+            <div class="kb-key" data-key="W">W</div>
+            <div class="kb-key" data-key="E">E</div>
+            <div class="kb-key" data-key="R">R</div>
+            <div class="kb-key" data-key="T">T</div>
+            <div class="kb-key" data-key="Y">Y</div>
+            <div class="kb-key" data-key="U">U</div>
+            <div class="kb-key" data-key="I">I</div>
+            <div class="kb-key" data-key="O">O</div>
+            <div class="kb-key" data-key="P">P</div>
+            <div class="kb-key" data-key="@">@</div>
+            <div class="kb-key wide" data-key="CLEAR">CLR</div>
+        </div>
+        <div class="kb-row">
+            <div class="kb-key" data-key="A">A</div>
+            <div class="kb-key" data-key="S">S</div>
+            <div class="kb-key" data-key="D">D</div>
+            <div class="kb-key" data-key="F">F</div>
+            <div class="kb-key" data-key="G">G</div>
+            <div class="kb-key" data-key="H">H</div>
+            <div class="kb-key" data-key="J">J</div>
+            <div class="kb-key" data-key="K">K</div>
+            <div class="kb-key" data-key="L">L</div>
+            <div class="kb-key" data-key=";">;</div>
+            <div class="kb-key wider" data-key="Enter">ENT</div>
+        </div>
+        <div class="kb-row">
+            <div class="kb-key wide" data-key="SHIFT" id="shiftKey">⇧</div>
+            <div class="kb-key" data-key="Z">Z</div>
+            <div class="kb-key" data-key="X">X</div>
+            <div class="kb-key" data-key="C">C</div>
+            <div class="kb-key" data-key="V">V</div>
+            <div class="kb-key" data-key="B">B</div>
+            <div class="kb-key" data-key="N">N</div>
+            <div class="kb-key" data-key="M">M</div>
+            <div class="kb-key" data-key=",">,</div>
+            <div class="kb-key" data-key=".">.</div>
+            <div class="kb-key" data-key="/">/</div>
+        </div>
+        <div class="kb-row">
+            <div class="kb-key" data-key="ArrowUp">↑</div>
+            <div class="kb-key" data-key="ArrowDown">↓</div>
+            <div class="kb-key" data-key="ArrowLeft">←</div>
+            <div class="kb-key" data-key="ArrowRight">→</div>
+            <div class="kb-key space" data-key=" ">SPACE</div>
+        </div>
+    </div>
+
+    <div id="fps"></div>
+    <div style="margin-top:0.5em;font-size:0.65em;color:#444;">
+        ROMs &amp; software: <a href="https://colorcomputerarchive.com" target="_blank" style="color:#484;">colorcomputerarchive.com</a>
+    </div>
+    <script type="module" src="coco.js"></script>
+</body>
+</html>
