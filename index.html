@@ -123,7 +123,16 @@
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
+            position: relative;
         }
+        .kb-key .sh {
+            position: absolute;
+            top: 1px;
+            font-size: 0.55em;
+            color: #070;
+        }
+        .kb-key.shifted .sh { color: #0f0; }
+        .kb-key.shifted { color: #070; }
         .kb-key:active, .kb-key.active {
             background: #0a0;
             color: #000;
@@ -192,18 +201,18 @@
 
     <div id="keyboard-wrap">
         <div class="kb-row">
-            <div class="kb-key" data-key="1">1</div>
-            <div class="kb-key" data-key="2">2</div>
-            <div class="kb-key" data-key="3">3</div>
-            <div class="kb-key" data-key="4">4</div>
-            <div class="kb-key" data-key="5">5</div>
-            <div class="kb-key" data-key="6">6</div>
-            <div class="kb-key" data-key="7">7</div>
-            <div class="kb-key" data-key="8">8</div>
-            <div class="kb-key" data-key="9">9</div>
+            <div class="kb-key" data-key="1" data-shift="!"><span class="sh">!</span>1</div>
+            <div class="kb-key" data-key="2" data-shift="&quot;"><span class="sh">&quot;</span>2</div>
+            <div class="kb-key" data-key="3" data-shift="#"><span class="sh">#</span>3</div>
+            <div class="kb-key" data-key="4" data-shift="$"><span class="sh">$</span>4</div>
+            <div class="kb-key" data-key="5" data-shift="%"><span class="sh">%</span>5</div>
+            <div class="kb-key" data-key="6" data-shift="&amp;"><span class="sh">&amp;</span>6</div>
+            <div class="kb-key" data-key="7" data-shift="'"><span class="sh">'</span>7</div>
+            <div class="kb-key" data-key="8" data-shift="("><span class="sh">(</span>8</div>
+            <div class="kb-key" data-key="9" data-shift=")"><span class="sh">)</span>9</div>
             <div class="kb-key" data-key="0">0</div>
-            <div class="kb-key" data-key=":">:</div>
-            <div class="kb-key" data-key="-">-</div>
+            <div class="kb-key" data-key=":" data-shift="*"><span class="sh">*</span>:</div>
+            <div class="kb-key" data-key="-" data-shift="="><span class="sh">=</span>-</div>
             <div class="kb-key wide" data-key="BREAK">BRK</div>
         </div>
         <div class="kb-row">
@@ -218,7 +227,6 @@
             <div class="kb-key" data-key="O">O</div>
             <div class="kb-key" data-key="P">P</div>
             <div class="kb-key" data-key="@">@</div>
-            <div class="kb-key wide" data-key="CLEAR">CLR</div>
         </div>
         <div class="kb-row">
             <div class="kb-key" data-key="A">A</div>
@@ -230,8 +238,8 @@
             <div class="kb-key" data-key="J">J</div>
             <div class="kb-key" data-key="K">K</div>
             <div class="kb-key" data-key="L">L</div>
-            <div class="kb-key" data-key=";">;</div>
-            <div class="kb-key wider" data-key="Enter">ENT</div>
+            <div class="kb-key" data-key=";" data-shift="+"><span class="sh">+</span>;</div>
+            <div class="kb-key wider" data-key="Enter">ENTER</div>
         </div>
         <div class="kb-row">
             <div class="kb-key wide" data-key="SHIFT" id="shiftKey">⇧</div>
@@ -242,9 +250,9 @@
             <div class="kb-key" data-key="B">B</div>
             <div class="kb-key" data-key="N">N</div>
             <div class="kb-key" data-key="M">M</div>
-            <div class="kb-key" data-key=",">,</div>
-            <div class="kb-key" data-key=".">.</div>
-            <div class="kb-key" data-key="/">/</div>
+            <div class="kb-key" data-key="," data-shift="&lt;"><span class="sh">&lt;</span>,</div>
+            <div class="kb-key" data-key="." data-shift="&gt;"><span class="sh">&gt;</span>.</div>
+            <div class="kb-key" data-key="/" data-shift="?"><span class="sh">?</span>/</div>
         </div>
         <div class="kb-row">
             <div class="kb-key" data-key="ArrowUp">↑</div>
@@ -252,6 +260,7 @@
             <div class="kb-key" data-key="ArrowLeft">←</div>
             <div class="kb-key" data-key="ArrowRight">→</div>
             <div class="kb-key space" data-key=" ">SPACE</div>
+            <div class="kb-key wide" data-key="CLEAR">CLR</div>
         </div>
     </div>
 

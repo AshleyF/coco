@@ -803,11 +803,22 @@ document.getElementById('kbToggle')?.addEventListener('click', () => {
     document.getElementById('keyboard-wrap')?.classList.toggle('visible');
 });
 
+// Auto-show on touch devices
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.getElementById('keyboard-wrap')?.classList.add('visible');
+}
+
 let _shiftSticky = false;
 const _shiftKeyEl = document.getElementById('shiftKey');
+const _shiftableKeys = document.querySelectorAll('#keyboard-wrap .kb-key[data-shift]');
+
+function _updateShiftHighlight() {
+    _shiftableKeys.forEach(k => k.classList.toggle('shifted', _shiftSticky));
+}
 
 document.querySelectorAll('#keyboard-wrap .kb-key').forEach(el => {
     const key = el.dataset.key;
+    const shiftKey = el.dataset.shift;
     if (!key) return;
 
     const press = (e) => {
@@ -815,6 +826,7 @@ document.querySelectorAll('#keyboard-wrap .kb-key').forEach(el => {
         if (key === 'SHIFT') {
             _shiftSticky = !_shiftSticky;
             el.classList.toggle('active', _shiftSticky);
+            _updateShiftHighlight();
             if (_shiftSticky) {
                 coco.keyboard.keyDown({ key: 'Shift' });
             } else {
@@ -823,17 +835,20 @@ document.querySelectorAll('#keyboard-wrap .kb-key').forEach(el => {
             return;
         }
         el.classList.add('active');
-        coco.keyboard.keyDown({ key });
+        const sendKey = (_shiftSticky && shiftKey) ? shiftKey : key;
+        coco.keyboard.keyDown({ key: sendKey });
     };
 
     const release = (e) => {
         e.preventDefault();
         if (key === 'SHIFT') return;
         el.classList.remove('active');
-        coco.keyboard.keyUp({ key });
+        const sendKey = (_shiftSticky && shiftKey) ? shiftKey : key;
+        coco.keyboard.keyUp({ key: sendKey });
         if (_shiftSticky) {
             _shiftSticky = false;
             if (_shiftKeyEl) _shiftKeyEl.classList.remove('active');
+            _updateShiftHighlight();
             coco.keyboard.keyUp({ key: 'Shift' });
         }
     };
