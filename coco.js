@@ -117,13 +117,21 @@ export class CoCo {
 
     setCanvas(canvas) {
         this.canvas = canvas;
+        // Visible canvas at 2x the native CoCo resolution. The VDG is
+        // 256x192, and we upscale to 512x384 in JS using integer scaling
+        // with imageSmoothingEnabled=false, which gives crisp pixel art
+        // *inside* the canvas bitmap. CSS then only has to scale smoothly
+        // to fit the viewport — no nearest-neighbor compositor scaler
+        // involved, which avoids a GPU-driver crash path on Android when
+        // content changes rapidly.
+        canvas.width = 512;
+        canvas.height = 384;
         this.ctx = canvas.getContext('2d');
-        // Off-screen back buffer. We paint pixels into this with putImageData,
-        // then drawImage onto the visible canvas. drawImage between canvases
-        // takes a different (more stable) path through Android's GPU driver
-        // than putImageData directly to a CSS-scaled visible canvas, which
-        // crashes the GPU process on some Android devices when content
-        // changes rapidly (e.g. running a BASIC program).
+        this.ctx.imageSmoothingEnabled = false;
+        // Off-screen back buffer at native resolution. We paint pixels into
+        // this with putImageData, then drawImage onto the visible canvas.
+        // drawImage between canvases is a more stable path through the
+        // Android GPU driver than putImageData directly to a scaled canvas.
         this._backCanvas = document.createElement('canvas');
         this._backCanvas.width = 256;
         this._backCanvas.height = 192;
@@ -243,7 +251,12 @@ export class CoCo {
             this.vdg.renderText(videoBase, css);
         }
 
-        // Blit via off-screen back buffer (see setCanvas comment).
+        // Blit: putImageData into off-screen back buffer at native 256x192,
+        // then drawImage with 2x integer scaling onto the visible 512x384
+        // canvas. imageSmoothingEnabled=false gives pixel-perfect scaling
+        // inside the canvas. CSS can then smooth-scale the 512x384 bitmap
+        // to the viewport without involving the GPU's nearest-neighbor
+        // scaler, which is the likely Android crash trigger.
         if (this.ctx && this._backCtx) {
             if (!this._imageData) {
                 this._imageData = this._backCtx.createImageData(
@@ -251,7 +264,10 @@ export class CoCo {
             }
             this._imageData.data.set(this.vdg.pixels);
             this._backCtx.putImageData(this._imageData, 0, 0);
-            this.ctx.drawImage(this._backCanvas, 0, 0);
+            this.ctx.drawImage(
+                this._backCanvas,
+                0, 0, this.vdg.width, this.vdg.height,
+                0, 0, this.canvas.width, this.canvas.height);
         }
 
         // Flush sound
