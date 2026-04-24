@@ -117,7 +117,7 @@ export class CoCo {
 
     setCanvas(canvas) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
+        this.ctx = canvas.getContext('2d', { willReadFrequently: true });
     }
 
     async loadROMFile(file) {
@@ -233,14 +233,15 @@ export class CoCo {
             this.vdg.renderText(videoBase, css);
         }
 
-        // Blit to canvas
+        // Blit to canvas — copy pixel data so the VDG buffer can be safely
+        // reused next frame (shared-buffer views crash Chrome on Android).
         if (this.ctx) {
-            const img = new ImageData(
-                new Uint8ClampedArray(this.vdg.pixels.buffer),
-                this.vdg.width,
-                this.vdg.height
-            );
-            this.ctx.putImageData(img, 0, 0);
+            if (!this._imageData) {
+                this._imageData = this.ctx.createImageData(
+                    this.vdg.width, this.vdg.height);
+            }
+            this._imageData.data.set(this.vdg.pixels);
+            this.ctx.putImageData(this._imageData, 0, 0);
         }
 
         // Flush sound
@@ -429,7 +430,7 @@ export class CoCo {
                 (this.mem.cartrom && this._cartBootFrames !== undefined && this._cartBootFrames < 300);
             if (this.cassette.motorOn || this.cassette.recording || cartBooting) {
                 // $A7D8: WRLDR — write leader + data. Skip entirely.
-                if (pc === 0xA7D8) { cpu.pc = 0xA7E4; executed += 100; continue; }
+                if (pc === 0xA7D8) { this.cpu.pc = 0xA7E4; executed += 100; continue; }
                 // $A7CA: CASON — motor on + delay. Skip delay but charge real cycle cost.
                 if (pc === 0xA7CA) {
                     const val = this.mem.read(0xFF21) | 0x08;
