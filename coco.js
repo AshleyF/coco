@@ -117,7 +117,17 @@ export class CoCo {
 
     setCanvas(canvas) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d', { willReadFrequently: true });
+        this.ctx = canvas.getContext('2d');
+        // Off-screen back buffer. We paint pixels into this with putImageData,
+        // then drawImage onto the visible canvas. drawImage between canvases
+        // takes a different (more stable) path through Android's GPU driver
+        // than putImageData directly to a CSS-scaled visible canvas, which
+        // crashes the GPU process on some Android devices when content
+        // changes rapidly (e.g. running a BASIC program).
+        this._backCanvas = document.createElement('canvas');
+        this._backCanvas.width = 256;
+        this._backCanvas.height = 192;
+        this._backCtx = this._backCanvas.getContext('2d');
     }
 
     async loadROMFile(file) {
@@ -233,15 +243,15 @@ export class CoCo {
             this.vdg.renderText(videoBase, css);
         }
 
-        // Blit to canvas — copy pixel data so the VDG buffer can be safely
-        // reused next frame (shared-buffer views crash Chrome on Android).
-        if (this.ctx) {
+        // Blit via off-screen back buffer (see setCanvas comment).
+        if (this.ctx && this._backCtx) {
             if (!this._imageData) {
-                this._imageData = this.ctx.createImageData(
+                this._imageData = this._backCtx.createImageData(
                     this.vdg.width, this.vdg.height);
             }
             this._imageData.data.set(this.vdg.pixels);
-            this.ctx.putImageData(this._imageData, 0, 0);
+            this._backCtx.putImageData(this._imageData, 0, 0);
+            this.ctx.drawImage(this._backCanvas, 0, 0);
         }
 
         // Flush sound
