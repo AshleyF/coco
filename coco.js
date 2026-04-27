@@ -176,10 +176,16 @@ export class CoCo {
     // Call each frame to advance the typing simulation
     _advanceTyping() {
         if (!this._typeQueue || this._typeQueue.length === 0) {
+            // Queue is empty, but we still need to hold the last key for the
+            // full hold duration before releasing — otherwise on slow devices
+            // BASIC's KEYIN scan can miss the press.
             if (this._typePhase === 'hold') {
-                this.keyboard.keyUp({ key: this._typeCurrentKey });
-                this._typePhase = 'idle';
-                this._typeCurrentKey = null;
+                this._typeFrameCount++;
+                if (this._typeFrameCount >= this._typeHoldFrames) {
+                    this.keyboard.keyUp({ key: this._typeCurrentKey });
+                    this._typePhase = 'idle';
+                    this._typeCurrentKey = null;
+                }
             }
             return;
         }
