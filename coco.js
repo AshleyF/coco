@@ -117,25 +117,15 @@ export class CoCo {
 
     setCanvas(canvas) {
         this.canvas = canvas;
-        // Visible canvas at 2x the native CoCo resolution. The VDG is
-        // 256x192, and we upscale to 512x384 in JS using integer scaling
-        // with imageSmoothingEnabled=false, which gives crisp pixel art
-        // *inside* the canvas bitmap. CSS then only has to scale smoothly
-        // to fit the viewport — no nearest-neighbor compositor scaler
-        // involved, which avoids a GPU-driver crash path on Android when
-        // content changes rapidly.
-        canvas.width = 512;
-        canvas.height = 384;
+        // Canvas bitmap is the VDG's native 256x192. The browser's compositor
+        // scales to whatever CSS size the page wants (we use aspect-ratio:4/3
+        // and width:100% in the stylesheet). Per A/B benchmarks on Android,
+        // direct putImageData to a native-sized canvas is significantly
+        // faster than going via an off-screen back buffer + drawImage,
+        // and using a native-sized bitmap minimises the per-frame upload.
+        canvas.width = 256;
+        canvas.height = 192;
         this.ctx = canvas.getContext('2d');
-        this.ctx.imageSmoothingEnabled = false;
-        // Off-screen back buffer at native resolution. We paint pixels into
-        // this with putImageData, then drawImage onto the visible canvas.
-        // drawImage between canvases is a more stable path through the
-        // Android GPU driver than putImageData directly to a scaled canvas.
-        this._backCanvas = document.createElement('canvas');
-        this._backCanvas.width = 256;
-        this._backCanvas.height = 192;
-        this._backCtx = this._backCanvas.getContext('2d');
     }
 
     async loadROMFile(file) {
@@ -251,23 +241,34 @@ export class CoCo {
             this.vdg.renderText(videoBase, css);
         }
 
-        // Blit: putImageData into off-screen back buffer at native 256x192,
-        // then drawImage with 2x integer scaling onto the visible 512x384
-        // canvas. imageSmoothingEnabled=false gives pixel-perfect scaling
-        // inside the canvas. CSS can then smooth-scale the 512x384 bitmap
-        // to the viewport without involving the GPU's nearest-neighbor
-        // scaler, which is the likely Android crash trigger.
-        if (this.ctx && this._backCtx) {
-            if (!this._imageData) {
-                this._imageData = this._backCtx.createImageData(
-                    this.vdg.width, this.vdg.height);
+        // Skip the GPU upload if nothing has changed since the last frame
+        // (very common at the BASIC prompt — only the cursor blink produces
+        // periodic changes). On Android the per-frame putImageData round-trip
+        // is by far the most expensive part of stepFrame, so skipping it on
+        // unchanged frames lets idle rAF run at the browser's refresh rate
+        // instead of the GPU upload cap.
+        if (this.ctx) {
+            const pixels = this.vdg.pixels;
+            if (!this._prevPixels || this._prevPixels.length !== pixels.length) {
+                this._prevPixels = new Uint8Array(pixels.length);
+                this._pixelsDirty = true;
+            } else {
+                let same = true;
+                const prev = this._prevPixels;
+                for (let i = 0, n = pixels.length; i < n; i++) {
+                    if (pixels[i] !== prev[i]) { same = false; break; }
+                }
+                this._pixelsDirty = !same;
             }
-            this._imageData.data.set(this.vdg.pixels);
-            this._backCtx.putImageData(this._imageData, 0, 0);
-            this.ctx.drawImage(
-                this._backCanvas,
-                0, 0, this.vdg.width, this.vdg.height,
-                0, 0, this.canvas.width, this.canvas.height);
+            if (this._pixelsDirty) {
+                if (!this._imageData) {
+                    this._imageData = this.ctx.createImageData(
+                        this.vdg.width, this.vdg.height);
+                }
+                this._imageData.data.set(pixels);
+                this.ctx.putImageData(this._imageData, 0, 0);
+                this._prevPixels.set(pixels);
+            }
         }
 
         // Flush sound
@@ -520,6 +521,8 @@ export class CoCo {
 
 // === UI wiring ===
 const coco = new CoCo();
+// Expose for debugging/automation (Chrome DevTools, CDP, etc.)
+window.coco = coco;
 const status = document.getElementById('status');
 const canvas = document.getElementById('screen');
 if (canvas) coco.setCanvas(canvas);
