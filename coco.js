@@ -521,8 +521,6 @@ export class CoCo {
 
 // === UI wiring ===
 const coco = new CoCo();
-// Expose for debugging/automation (Chrome DevTools, CDP, etc.)
-window.coco = coco;
 const status = document.getElementById('status');
 const canvas = document.getElementById('screen');
 if (canvas) coco.setCanvas(canvas);
