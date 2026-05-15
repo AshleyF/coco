@@ -582,11 +582,37 @@ async function autoLoadROMs() {
         coco.start();
         startTapeStatus();
         status.textContent = `Loaded: ${loaded.join(', ')}. Running!`;
+        await autoLoadCartridge();
     } else {
         status.textContent = 'No ROMs found in roms/. Click Load ROM or Test ROM.';
     }
 }
 autoLoadROMs();
+
+// Auto-load a cartridge specified via ?cart=<name> query string.
+// <name> may be a bare name (resolved to carts/<name>.ccc) or a full path/URL.
+async function autoLoadCartridge() {
+    const params = new URLSearchParams(window.location.search);
+    const cart = params.get('cart');
+    if (!cart) return;
+    const url = /[\/.]/.test(cart) ? cart : `carts/${cart}.ccc`;
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            status.textContent = `Cartridge not found: ${url}`;
+            return;
+        }
+        const data = new Uint8Array(await resp.arrayBuffer());
+        coco.loadCartridge(data);
+        coco.stop();
+        coco.reset();
+        coco.start();
+        startTapeStatus();
+        status.textContent = `Cartridge loaded: ${url} (${data.length} bytes) — auto-starting`;
+    } catch (e) {
+        status.textContent = `Failed to load cartridge ${url}: ${e.message}`;
+    }
+}
 
 document.getElementById('loadRom')?.addEventListener('click', () => {
     document.getElementById('romFile')?.click();

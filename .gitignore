@@ -3,3 +3,6 @@ roms/*
 !roms/bas13.rom
 !roms/extbas11.rom
 !roms/README.md
+carts/*
+!carts/colorforth.ccc
+!carts/README.md
