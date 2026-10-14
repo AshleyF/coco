@@ -31,14 +31,14 @@ export class SAM {
         return this.bits & 0x07;
     }
 
-    // Memory size (M0-M1, bits 12-13)
+    // Memory size (M0-M1, bits 13-14)
     get memorySize() {
-        return (this.bits >> 12) & 0x03;
+        return (this.bits >> 13) & 0x03;
     }
 
-    // CPU rate (R0-R1, bits 14-15)
+    // CPU rate (R0-R1, bits 11-12)
     get cpuRate() {
-        return (this.bits >> 14) & 0x03;
+        return (this.bits >> 11) & 0x03;
     }
 
     // Page bit (P1, bit 10)

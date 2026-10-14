@@ -15,7 +15,7 @@
 // Filename:  8 bytes (ASCII, space-padded)
 // File type: $00=BASIC, $01=data, $02=machine language
 // ASCII flag: $00=binary, $FF=ASCII
-// Gap flag:  $01=continuous, $FF=gaps
+// Gap flag:  $00=continuous, $FF=gaps
 // Start addr: 2 bytes (ML only)
 // Load addr:  2 bytes (ML only)
 
@@ -117,7 +117,7 @@ export function buildHeader(name, fileType, asciiFlag, startAddr, loadAddr) {
     for (let i = 0; i < 8; i++) data[i] = padded.charCodeAt(i);
     data[8] = fileType;
     data[9] = asciiFlag;
-    data[10] = 0x01; // gap flag: continuous
+    data[10] = 0x00; // gap flag: continuous (required by CLOADM)
     data[11] = (startAddr >> 8) & 0xFF;
     data[12] = startAddr & 0xFF;
     data[13] = (loadAddr >> 8) & 0xFF;

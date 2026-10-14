@@ -815,8 +815,25 @@ test('SAM all video offset bits', () => {
 
 test('SAM memory size', () => {
     const sam = new SAM();
-    sam.write(0xFFD9); // set bit 12 (M0)
+    sam.write(0xFFDB); // set bit 13 (M0)
     eq(sam.memorySize, 1, 'mem size 1');
+});
+
+test('SAM clock and memory fields are independent', () => {
+    const sam = new SAM();
+    sam.write(0xFFD7); // R0
+    eq(sam.cpuRate, 1, 'address-dependent clock');
+    eq(sam.memorySize, 0, 'memory untouched');
+    sam.write(0xFFD9); // R1
+    eq(sam.cpuRate, 3, 'both rate bits');
+    sam.write(0xFFDD); // M1
+    eq(sam.memorySize, 2, '64K dynamic RAM');
+    eq(sam.cpuRate, 3, 'rate untouched');
+    sam.write(0xFFDF); // TY
+    eq(sam.cpuRate, 3, 'map type does not affect clock');
+    sam.write(0xFFD6); // clear R0
+    sam.write(0xFFD8); // clear R1
+    eq(sam.cpuRate, 0, 'normal clock');
 });
 
 // ===================================================================
@@ -842,6 +859,8 @@ test('Key A release clears', () => {
     const evt = { key: 'a', preventDefault: () => {} };
     kb.keyDown(evt);
     kb.keyUp(evt);
+    // A brief tap must be visible to the emulated machine for one scan.
+    eq(kb.readRows(0xFD) & 0x01, 0x00, 'tap survives until scanned');
     const rows = kb.readRows(0xFD);
     eq(rows & 0x01, 0x01, 'row 0 high (A released)');
 });

@@ -18,6 +18,13 @@ export class Joystick {
         this._rightAccel = 0;
         this._leftAccel = 0;
         this._ownedKeys = new Set();
+        this.keyboardMode = 'keyboard';
+    }
+
+    setKeyboardMode(mode) {
+        if (!['keyboard', 'right', 'left'].includes(mode)) throw new Error('Unknown joystick keyboard mode');
+        this.clearAll();
+        this.keyboardMode = mode;
     }
 
     update() {
@@ -52,12 +59,14 @@ export class Joystick {
         }
     }
 
-    // Ctrl+Arrows/Space = right joystick (primary)
-    // Ctrl+Shift+Arrows/Space = left joystick
+    // Alt or Ctrl + Arrows/Space = right joystick (primary).
+    // Add Shift for the left stick. Alt is an alternative for system Ctrl shortcuts.
     keyDown(event) {
-        if (!event.ctrlKey) return false;
-        const stick = event.shiftKey ? this._left : this._right;
-        const btnIdx = event.shiftKey ? 1 : 0;
+        const selected = this.keyboardMode !== 'keyboard';
+        if (!selected && !event.ctrlKey && !event.altKey) return false;
+        const left = selected ? this.keyboardMode === 'left' : event.shiftKey;
+        const stick = left ? this._left : this._right;
+        const btnIdx = left ? 1 : 0;
         switch (event.key) {
             case 'ArrowUp':    stick.up = true;          break;
             case 'ArrowDown':  stick.down = true;        break;
@@ -66,7 +75,7 @@ export class Joystick {
             case ' ':          this.buttons[btnIdx] = true; break;
             default: return false;
         }
-        this._ownedKeys.add(this._keyId(event));
+        this._ownedKeys.add((left ? 'S+' : '') + event.key);
         return true;
     }
 
@@ -96,10 +105,6 @@ export class Joystick {
             consumed = true;
         }
         return consumed;
-    }
-
-    _keyId(event) {
-        return (event.shiftKey ? 'S+' : '') + event.key;
     }
 
     clearAll() {

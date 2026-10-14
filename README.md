@@ -18,7 +18,7 @@ Open `http://localhost:3000`. The emulator auto-loads Color BASIC 1.3 + Extended
 - **Video** — text mode, semigraphics-4 (SET/RESET), all PMODE graphics
 - **Sound** — DAC audio via Web Audio API
 - **Keyboard** — full matrix emulation, browser key mapping, on-screen touch keyboard for mobile
-- **Joystick** — dual-stick emulation (Ctrl+Arrows = right stick, +Shift = left stick)
+- **Joystick** — select right or left joystick below the screen, then use arrows and Space
 - **Cassette** — CLOAD/CSAVE with CAS files, WAV export (real FSK audio playable on hardware)
 - **Cartridges** — ROM cartridge loading with FIRQ autostart
 - **Mobile** — responsive layout, on-screen CoCo keyboard (tap ⌨ to toggle)
@@ -32,8 +32,9 @@ Open `http://localhost:3000`. The emulator auto-loads Color BASIC 1.3 + Extended
 | CLEAR | Escape |
 | BREAK | F12 |
 | Backspace | Left arrow |
-| Right joystick | Ctrl + Arrows, Ctrl + Space = fire |
-| Left joystick | Ctrl + Shift + Arrows, Ctrl + Shift + Space = fire |
+| Right joystick | Select Right joystick, then arrows = move and Space = fire |
+| Left joystick | Select Left joystick, then arrows = move and Space = fire |
+| Restore keyboard arrows/Space | Select CoCo keyboard |
 | Paste text | Ctrl + V |
 
 ## Cartridges & Tapes
@@ -131,4 +132,3 @@ Row 6: ENTER  CLEAR  BREAK  ---    ---    ---    ---    SHIFT
 - [CoCo Technical Reference](https://archive.org/details/ETC2052)
 - [Lomont Hardware Guide](https://www.lomont.org/software/misc/coco/Lomont_CoCoHardware.pdf)
 - [Color Computer Archive](https://colorcomputerarchive.com/)
-

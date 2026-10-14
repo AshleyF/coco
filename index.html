@@ -91,6 +91,16 @@
         }
         .joy-group canvas { border: 1px solid #333; background: #111; }
         .joy-label { font-size: 0.8em; color: #555; }
+        #joystickKeys {
+            color-scheme: dark;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-family: inherit;
+            padding: 0.35em 0.55em;
+        }
+        #joystickKeys option { background: #333; color: #fff; }
 
         /* On-screen CoCo keyboard */
         #keyboard-wrap {
@@ -198,6 +208,16 @@
         </div>
     </div>
 
+    <div class="joy-label" style="text-align:center; margin:0.5em 0;">
+        <label for="joystickKeys">Arrow keys / Space:</label>
+        <select id="joystickKeys">
+            <option value="keyboard">CoCo keyboard</option>
+            <option value="right">Right joystick</option>
+            <option value="left">Left joystick</option>
+        </select>
+        Select a joystick, then use plain arrows to move and Space to fire.
+    </div>
+
     <div id="keyboard-wrap">
         <div class="kb-row">
             <div class="kb-key" data-key="1" data-shift="!"><span class="sh">!</span>1</div>
@@ -267,6 +287,6 @@
     <div style="margin-top:0.5em;font-size:0.65em;color:#444;">
         ROMs &amp; software: <a href="https://colorcomputerarchive.com" target="_blank" style="color:#484;">colorcomputerarchive.com</a>
     </div>
-    <script type="module" src="coco.js"></script>
+    <script type="module" src="coco.js?v=joystick-input-2"></script>
 </body>
 </html>

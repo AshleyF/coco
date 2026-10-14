@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { CoCo } from '../../../coco-machine.js';
+const coco = new CoCo();
+coco.mem.loadROM(readFileSync(new URL('../../../roms/bas13.rom', import.meta.url)), 0xa000);
+coco.mem.loadROM(readFileSync(new URL('../../../roms/extbas11.rom', import.meta.url)), 0x8000);
+coco.reset();
+for (let i = 0; i < 120; i++) coco.stepFrame();
+assert.match(coco.readTextScreen(), /OK/);
+const binary = readFileSync(new URL('../build/prompt.bin', import.meta.url));
+// Rejected files must not partially load RAM.
+const before = coco.mem.ram.slice();
+assert.throws(() => coco.loadDECB(binary.subarray(0, binary.length - 1)));
+assert.deepEqual(coco.mem.ram, before);
+assert.equal(coco.loadDECB(binary, { execute: true }), 0x3000);
+for (let i = 0; i < 10; i++) coco.stepFrame();
+assert.match(coco.readTextScreen(), />/);
+coco.startTyping('PRINT 6*7\n');
+for (let i = 0; i < 160; i++) coco.stepFrame();
+assert.match(coco.readTextScreen(), />PRINT 6\*7\s*\n42\s*\n\s*\n>/);
+assert.ok(coco.cpu.pc >= 0xa000 || coco.cpu.pc >= 0x3000 && coco.cpu.pc < 0x4000);
+console.log('Native LOADM, physical keyboard, arithmetic PRINT, and next prompt passed.');
+console.log(coco.readTextScreen());
