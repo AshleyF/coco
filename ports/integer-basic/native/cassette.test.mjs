@@ -1,33 +1,64 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { CoCo } from '../../../coco-machine.js';
-const coco = new CoCo();
-coco.mem.loadROM(readFileSync(new URL('../../../roms/bas13.rom', import.meta.url)), 0xa000);
-coco.mem.loadROM(readFileSync(new URL('../../../roms/extbas11.rom', import.meta.url)), 0x8000);
-coco.reset();
-const frames = n => { for (let i = 0; i < n; i++) coco.stepFrame(); };
-frames(120);
-coco.cassette.loadCAS(readFileSync(new URL('../build/prompt.cas', import.meta.url)));
-coco.startTyping('CLOADM\n');
-frames(400);
-assert.match(coco.readTextScreen(), /INTBASIC/);
-// Compare every segment against the assembled binary after ROM cassette loading.
-const binary = readFileSync(new URL('../build/prompt.bin', import.meta.url));
-for (let offset = 0; binary[offset] === 0;) {
-    const length = binary.readUInt16BE(offset + 1), address = binary.readUInt16BE(offset + 3);
-    assert.deepEqual(Buffer.from(coco.mem.ram.slice(address, address + length)), binary.subarray(offset + 5, offset + 5 + length));
-    offset += 5 + length;
+import {readFileSync} from 'node:fs';
+import {CoCo} from '../../../coco-machine.js';
+import {attachPCM} from '../../../tests/pcm-tape-source.mjs';
+const machine=new CoCo();
+machine.mem.loadROM(readFileSync(new URL('../../../roms/bas13.rom',import.meta.url)),0xa000);
+machine.mem.loadROM(readFileSync(new URL('../../../roms/extbas11.rom',import.meta.url)),0x8000);
+machine.reset();
+const frames=n=>{for(let i=0;i<n;i++)machine.stepFrame();};
+const screen=()=>machine.readTextScreen();
+function waitFor(pattern) {
+    for(let i=0;i<30_000;i++) {
+        if(i%10===0&&pattern.test(screen()))return;
+        machine.stepFrame();
+    }
+    assert.match(screen(),pattern);
 }
-coco.startTyping('EXEC\n');
-frames(160);
-assert.match(coco.readTextScreen(), />/);
-coco.startTyping('PRINT 6*7\n');
-frames(160);
-assert.match(coco.readTextScreen(), />PRINT 6\*7\s*\n42\s*\n\s*\n>/);
-coco.startTyping('10 PRINT 123\n20 END\nRUN\n');
-frames(400);
-assert.match(coco.readTextScreen(), />RUN\s*\n123\s*\n\s*\n>/);
-coco.startTyping('10 A=0\n20 A=A+1\n30 IF A<3 THEN 20\n40 PRINT A\n50 END\nRUN\n');
-frames(900);
-assert.match(coco.readTextScreen(), />RUN\s*\n3\s*\n\s*\n>/);
-console.log('Tape image, ROM CLOADM/EXEC, physical keyboard PRINT, RUN, and conditional branching passed.');
+function type(text,enter=true) {
+    machine.startTyping(text);
+    if(!enter)machine._typeQueue.pop();
+    for(let i=0;i<30_000;i++) {
+        machine.stepFrame();
+        if(!machine._typeQueue.length&&machine._typePhase!=='hold') {frames(10);return;}
+    }
+    throw Error('Typing did not finish');
+}
+function key(key) {
+    machine.keyboard.keyDown({key});frames(4);
+    machine.keyboard.keyUp({key});frames(8);
+}
+frames(120);
+const binary=readFileSync('build/prompt.bin');
+const tapeMode=process.env.BASIC_TAPE_MODE||'fast';
+if(tapeMode==='pcm')attachPCM(machine,readFileSync('build/prompt.wav'));
+else {
+    machine.cassette.loadCAS(readFileSync('build/prompt.cas'));
+    if(tapeMode==='cas')machine.cassette.interceptEnabled=false;
+}
+type('CLOADM\n');waitFor(/F INTBASIC\s*\nOK\s*\n/);
+for(let offset=0;binary[offset]===0;) {
+    const length=binary.readUInt16BE(offset+1),address=binary.readUInt16BE(offset+3);
+    assert.deepEqual(Buffer.from(machine.mem.ram.slice(address,address+length)),binary.subarray(offset+5,offset+5+length));
+    offset+=5+length;
+}
+type('EXEC\n');waitFor(/>\s*$/);
+type('PRINT 1',false);key('Backspace');key('2');key('Enter');
+waitFor(/>PRINT 1_2\s*\n2\s*\n\s*\n>/);
+type('PRINT 99',false);key('Escape');type('PRINT 7\n');
+waitFor(/PRINT 7\s*\n7\s*\n\s*\n>/);
+assert.doesNotMatch(screen(),/\n99\s*\n|SYNTAX ERR/);
+for(const line of ['10 DIM A(2),B$(5)','20 B$="HI"','30 FOR I=1 TO 2',
+    '40 A(I)=I*7:GOSUB 100','50 NEXT I','60 END','100 PRINT B$;A(I):RETURN']) {
+    type(line+'\n');waitFor(/>\s*$/);
+    assert.doesNotMatch(screen(),/ERR/);
+}
+type('RUN\n');waitFor(/HI7\s*\nHI14\s*\n\s*\n>/);
+type('SCR\n');waitFor(/>\s*$/);
+for(const line of ['10 A=0','20 A=A+1','30 GOTO 20']) {
+    type(line+'\n');waitFor(/>\s*$/);
+}
+type('RUN\n');frames(120);key('p');
+waitFor(/STOPPED AT (20|30)/);waitFor(/>P\s*$/);
+type('RINT A\n');waitFor(/>PRINT A\s*\n[1-9]\d*\s*\n\s*\n>/);
+console.log(`${tapeMode}: full native CLOADM/EXEC, segment bytes, backspace, arrays/strings/FOR/GOSUB, asynchronous stop and retained state passed.`);

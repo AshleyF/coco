@@ -39,28 +39,93 @@ cpu-test: build/cpu-test
 
 LWASM ?= $(if $(wildcard .tools/lwasm),.tools/lwasm,lwasm)
 .PHONY: native native-test
-native: build/prompt.bin build/prompt.cas
+native: build/prompt.bin build/prompt.cas build/prompt.wav
 
 build/prompt.cas: build/prompt.bin native/cassette.mjs ../../cassette.js
 	node native/cassette.mjs $< $@
 
-build/prompt.bin: native/prompt.asm native/expressions.asm native/programs.asm | build
+build/prompt.wav: build/prompt.bin native/cassette.mjs ../../cassette.js
+	node native/cassette.mjs $< $@
+
+build/original-parser.inc: native/parser-build.py reference/a1basic.s reference/a1basic.bin | build
+	python3 native/parser-build.py
+
+build/parser-prototype.bin: build/original-parser.inc
+	$(LWASM) --6809 --format=decb --symbol-dump=build/parser-prototype.sym --output=$@ build/parser-prototype.asm
+
+.PHONY: native-parser-test
+native-parser-test: all verify build/parser-prototype.bin
+	python3 native/parser-prototype.test.py
+
+build/runtime-prototype.asm: native/original-runtime/build.py build/a1basic.lst reference/a1basic.s reference/a1basic.bin
+	python3 native/original-runtime/build.py
+
+build/a1basic.lst: build/a1basic.o
+	@test -f $@
+
+build/runtime-prototype.bin: build/runtime-prototype.asm
+	$(LWASM) --6809 --format=decb --symbol-dump=build/runtime-prototype.sym --output=$@ $<
+
+.PHONY: native-original native-original-test
+native-original: all verify build/runtime-prototype.bin
+
+native-original-test: native-original
+	node native/original-runtime/platform.test.mjs
+	node native/original-runtime/cassette.test.mjs
+	python3 oracle/behavior.py compare --runner 'node native/original-runtime/runner.mjs' --artifact build/runtime-prototype.bin --report build/native-original-runtime.json
+	python3 demos/test.py --runner 'node native/original-runtime/runner.mjs'
+
+build/prompt.bin: build/runtime-prototype.asm
 	$(LWASM) --6809 --format=decb --list=build/prompt.lst --symbol-dump=build/prompt.sym --output=$@ $<
 
-native-test: native
+.PHONY: native-handwritten
+native-handwritten: build/handwritten.bin
+
+build/handwritten.bin: native/prompt.asm native/expressions.asm native/programs.asm native/storage.asm native/io.asm native/memory.asm build/original-parser.inc | build
+	$(LWASM) --6809 --format=decb --symbol-dump=build/handwritten.sym --output=$@ $<
+
+native-test: all verify native
+	python3 native/parser-prototype.test.py --runner 'node native/original-runtime/parser.mjs' --report build/native-original-parser.json
 	node native/test.mjs
 	node native/layout.test.mjs
 	node native/cassette.test.mjs
+	node native/platform.test.mjs
+	node native/cycles.test.mjs
 
 .PHONY: native-behavior-test
 native-behavior-test: all verify native
-	python3 oracle/behavior.py compare --feature arithmetic --feature comparison --feature division --feature logic --feature literal-console --runner 'node native/runner.mjs'
-	python3 oracle/behavior.py compare --case store-overwrite-and-clr --case syntax-errors-recover --case literal-range-and-recovery --case keyboard-delete-character --case escape-cancels-partially-typed-line --case arithmetic-errors-recover --case arithmetic-failure-preserves-state-0 --case arithmetic-failure-preserves-state-1 --case arithmetic-failure-preserves-state-2 --case arithmetic-failure-preserves-state-3 --case arithmetic-failure-preserves-state-4 --runner 'node native/runner.mjs'
-	python3 native/programs.test.py
+	python3 oracle/behavior.py compare --runner 'node native/runner.mjs' --artifact build/prompt.bin --report build/native-acceptance.json
+	python3 native/report.py
 
 .PHONY: native-full-test
-native-full-test: all verify native
-	python3 oracle/behavior.py compare --runner 'node native/runner.mjs' --report build/native-acceptance.json
+native-full-test: native-behavior-test
+
+.PHONY: demos demo-test
+demos: build/blackjack.cas build/blackjack.wav
+
+build/blackjack.asm build/blackjack.ram &: demos/build.mjs demos/blackjack.bas build/prompt.bin
+	node demos/build.mjs
+
+build/blackjack.bin: build/blackjack.asm build/blackjack.ram
+	$(LWASM) --6809 --format=decb --output=$@ build/blackjack.asm
+
+build/blackjack.cas: build/blackjack.bin native/cassette.mjs ../../cassette.js
+	node native/cassette.mjs $< $@
+
+build/blackjack.wav: build/blackjack.bin native/cassette.mjs ../../cassette.js
+	node native/cassette.mjs $< $@
+
+demo-test: all verify native demos
+	python3 demos/test.py
+	node demos/cassette.test.mjs
+
+.PHONY: native-fsk-test verify-native
+native-fsk-test: native
+	node ../../tests/cassette-rom.test.node.mjs
+	BASIC_TAPE_MODE=cas node native/cassette.test.mjs
+	BASIC_TAPE_MODE=pcm node native/cassette.test.mjs
+
+verify-native: native-test native-behavior-test native-fsk-test demo-test
 
 .PHONY: golden-record golden-test
 golden-record: all verify

@@ -17,12 +17,15 @@ GOLDEN = ROOT / 'oracle/behavior.jsonl'
 
 
 def cases():
-    def case(name, feature, source, numbers=(), errors=(), contains=(), absent=()):
-        return {'id': name, 'feature': feature, 'intent': name.replace('-', ' '),
+    def case(name, feature, source, numbers=(), errors=(), contains=(), absent=(), event=None):
+        result = {'id': name, 'feature': feature, 'intent': name.replace('-', ' '),
                 'input': source + 'PRINT "DONE!"\n', 'budget': 10000000,
                 'expect': {'numbers': list(map(str, numbers)), 'errors': list(errors),
                            'contains': list(contains) + ['\nDONE!\n'],
                            'absent': list(absent), 'status': 0}}
+        if event is not None:
+            result['event'] = event
+        return result
     yield case('precedence-and-parentheses', 'arithmetic', 'PRINT 2+3*4\nPRINT (2+3)*4\nPRINT 20/3\nPRINT -20/3\n', [14,20,6,-6])
     yield case('arithmetic-errors-recover', 'errors', 'PRINT 32767+1\nPRINT 1/0\nPRINT 7\n', [7], ['>32767','>32767'])
     yield case('store-overwrite-and-clr', 'variables', 'A=7\nB=3\nPRINT A+B\nA=-2\nPRINT A\nCLR\nPRINT A\nPRINT B\nA=9\nPRINT A\n', [10,-2,0,0,9])
@@ -127,10 +130,13 @@ def main():
     parser.add_argument('--feature',action='append',help='compare a feature subset; repeatable')
     parser.add_argument('--case',action='append',help='compare an exact case id; repeatable')
     parser.add_argument('--report',type=Path,help='write per-case acceptance results, compare only')
+    parser.add_argument('--artifact',type=Path,help='fingerprint an immutable candidate build, compare only')
     args=parser.parse_args()
     if args.runner and args.mode!='compare': parser.error('runner requires compare')
     if (args.feature or args.case) and args.mode!='compare': parser.error('filters require compare')
     if args.report and args.mode!='compare': parser.error('report requires compare')
+    if args.artifact and args.mode!='compare': parser.error('artifact requires compare')
+    artifact_digest = hashlib.sha256(args.artifact.read_bytes()).hexdigest() if args.artifact else None
     if args.report and args.report.resolve() in {GOLDEN.resolve(), ROM.resolve(), (ROOT/'oracle/golden.jsonl').resolve()}:
         parser.error('acceptance reports cannot overwrite the reference ROM or frozen baselines')
     digest=hashlib.sha256(ROM.read_bytes()).hexdigest()
@@ -138,7 +144,9 @@ def main():
         suite=list(cases())
         metadata={'schema':1,'scope':'portable-language','rom_sha256':digest,'core_commit':'66bdc4702a7216cbfebdd0d4a4ca67f362547cfc','assertions':'independent results + exact frozen transcript','normalization':'display CR -> LF; no whitespace trimming'}
     else:
-        rows=[json.loads(line) for line in GOLDEN.read_text().splitlines()]
+        golden_bytes = GOLDEN.read_bytes()
+        suite_digest = hashlib.sha256(golden_bytes).hexdigest()
+        rows=[json.loads(line) for line in golden_bytes.decode().splitlines()]
         metadata,suite=rows[0],rows[1:]
         current=list(cases())
         if len(current)!=len(suite) or any(any(saved.get(key)!=case.get(key) for key in case) for saved,case in zip(suite,current)):
@@ -183,12 +191,16 @@ def main():
             except (AssertionError,RuntimeError) as error:
                 failures.append(str(error))
                 case_results.append({'id':case['id'],'feature':case['feature'],'passed':False,'reason':str(error)})
+    if args.artifact and hashlib.sha256(args.artifact.read_bytes()).hexdigest() != artifact_digest:
+        raise RuntimeError('candidate artifact changed during comparison; rerun against a stable build')
     if args.report:
         acceptance={'reference_rom_sha256':digest,
-                    'suite_sha256':hashlib.sha256(GOLDEN.read_bytes()).hexdigest(),
+                    'suite_sha256':suite_digest,
                     'runner':args.runner or 'original','cases':len(suite),
                     'passed':len(suite)-len(failures),'failed':len(failures),
                     'results':case_results}
+        if args.artifact:
+            acceptance['candidate_artifact']={'path':str(args.artifact),'sha256':artifact_digest}
         args.report.write_text(json.dumps(acceptance,indent=2)+'\n')
     if failures:
         print('\n'.join(failures[:30]))
@@ -196,11 +208,12 @@ def main():
         raise SystemExit(1)
     if args.mode=='record':
         GOLDEN.write_text('\n'.join(json.dumps(row,sort_keys=True) for row in [metadata]+suite)+'\n')
+        suite_digest = hashlib.sha256(GOLDEN.read_bytes()).hexdigest()
     if not args.runner and not (args.feature or args.case):
         mapping=instruction_map()
         covered=sum(hits[a-0xe000]>0 for a in mapping)
         report={'suite':'portable-language','rom_sha256':digest,
-                'suite_sha256':hashlib.sha256(GOLDEN.read_bytes()).hexdigest(),
+                'suite_sha256':suite_digest,
                 'cases':len(suite),'executed_entries':covered,'instruction_entries':len(mapping),'instruction_coverage_percent':round(100*covered/len(mapping),2),'uncovered':[f'{a:04X}' for a in mapping if not hits[a-0xe000]],'case_witnesses':witnesses}
         branch_names={'BPL','BMI','BVC','BVS','BCC','BCS','BNE','BEQ'}
         branch_addresses=[f'{a:04X}' for a,source in mapping.items() if source.split()[0] in branch_names]

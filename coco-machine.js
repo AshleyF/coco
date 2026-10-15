@@ -1,7 +1,7 @@
 // coco.js — TRS-80 Color Computer II system integration
 // Wires CPU, memory, PIAs, SAM, VDG, keyboard together
 
-import { MC6809 } from './cpu.js';
+import { MC6809 } from './cpu.js?v=carry-flags-1';
 import { Memory } from './memory.js';
 import { PIA } from './pia.js';
 import { SAM } from './sam.js';
@@ -9,7 +9,7 @@ import { VDG } from './vdg.js';
 import { Keyboard } from './keyboard.js';
 import { Joystick } from './joystick.js?v=joystick-input-2';
 import { Sound } from './sound.js';
-import { Cassette } from './cassette.js';
+import { Cassette } from './cassette.js?v=tape-fsk-1';
 
 const CYCLES_PER_FRAME = 14914; // ~894,886 Hz / 60 fps
 

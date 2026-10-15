@@ -1,6 +1,6 @@
 // cassette.js — CoCo cassette tape emulation
 // Supports loading and saving CAS files and real WAV audio files
-// WAV files use the actual 1200 baud FSK encoding (playable on real hardware)
+// WAV files use CoCo FSK encoding: one cycle per bit, least-significant bit first.
 
 // === CoCo Tape Block Format ===
 // Leader:    128 × $55
@@ -21,15 +21,14 @@
 
 // === FSK Audio Encoding ===
 // Bit 0: one cycle of 1200 Hz (sine wave)
-// Bit 1: two cycles of 2400 Hz (sine wave)
-// 1200 baud, 8 data bits, no parity, no stop bit in the stream
+// Bit 1: one cycle of 2400 Hz (sine wave)
+// 8 data bits, LSB first, no parity or framing bits in the stream.
 
 const SAMPLE_RATE = 44100;
-const BAUD = 1200;
 const FREQ_ZERO = 1200;
 const FREQ_ONE = 2400;
 const SAMPLES_PER_ZERO_BIT = Math.round(SAMPLE_RATE / FREQ_ZERO); // ~37
-const SAMPLES_PER_ONE_BIT = Math.round(SAMPLE_RATE / FREQ_ONE);   // ~18 per cycle, ×2 = ~37
+const SAMPLES_PER_ONE_BIT = Math.round(SAMPLE_RATE / FREQ_ONE);   // ~18
 
 // =====================================================================
 // CAS file format (raw byte blocks)
@@ -131,14 +130,12 @@ export function buildHeader(name, fileType, asciiFlag, startAddr, loadAddr) {
 
 function encodeBit(samples, offset, bit) {
     if (bit) {
-        // '1' = two cycles of 2400 Hz
+        // '1' = one cycle of 2400 Hz
         const period = SAMPLES_PER_ONE_BIT;
-        for (let c = 0; c < 2; c++) {
-            for (let i = 0; i < period; i++) {
-                samples[offset++] = Math.sin(2 * Math.PI * i / period) * 0.9;
-            }
+        for (let i = 0; i < period; i++) {
+            samples[offset++] = Math.sin(2 * Math.PI * i / period) * 0.9;
         }
-        return period * 2;
+        return period;
     } else {
         // '0' = one cycle of 1200 Hz
         const period = SAMPLES_PER_ZERO_BIT;
@@ -151,7 +148,7 @@ function encodeBit(samples, offset, bit) {
 
 function encodeByte(samples, offset, byte) {
     let written = 0;
-    for (let bit = 7; bit >= 0; bit--) {
+    for (let bit = 0; bit < 8; bit++) {
         written += encodeBit(samples, offset + written, (byte >> bit) & 1);
     }
     return written;
@@ -167,6 +164,9 @@ export function casToWAV(casData) {
     for (let i = 0; i < casData.length; i++) {
         offset += encodeByte(samples, offset, casData[i]);
     }
+    // One closing cycle lets a zero-crossing decoder measure the final data
+    // cycle. Fewer than eight padding bits do not create an extra data byte.
+    offset += encodeBit(samples, offset, 0);
 
     // Convert to 16-bit PCM WAV
     return float32ToWAV(samples.subarray(0, offset), SAMPLE_RATE);
@@ -246,7 +246,7 @@ function decodeFSK(samples, sampleRate) {
     const cycleOne = sampleRate / FREQ_ONE;     // ~18
     const midpoint = (cycleZero + cycleOne) / 2; // ~27
 
-    // Decode: long cycle = 0 bit, two short cycles = 1 bit
+    // Every complete cycle is one bit; its wavelength determines the value.
     const bits = [];
     let ci = 0;
     while (ci < cycleLengths.length) {
@@ -256,19 +256,17 @@ function decodeFSK(samples, sampleRate) {
             bits.push(0);
             ci++;
         } else {
-            // Short cycle → part of a 1 bit
+            // Short cycle → 1 bit
             bits.push(1);
             ci++;
-            // Skip the second short cycle
-            if (ci < cycleLengths.length && cycleLengths[ci] <= midpoint) ci++;
         }
     }
 
-    // Group bits into bytes (MSB first)
+    // Group bits into bytes (LSB first)
     for (let i = 0; i + 7 < bits.length; i += 8) {
         let byte = 0;
         for (let b = 0; b < 8; b++) {
-            byte = (byte << 1) | bits[i + b];
+            byte |= bits[i + b] << b;
         }
         bytes.push(byte);
     }
@@ -363,19 +361,18 @@ export class Cassette {
     _expandToFSK() {
         this._currentBitQueue = [];
         if (!this.playBuffer) return;
-        // CPU runs at 894,886 Hz. At 1200 baud:
+        // CPU runs at 894,886 Hz:
         // 0-bit: 1 cycle of 1200 Hz → full period = 746 cycles → half = 373
-        // 1-bit: 2 cycles of 2400 Hz → full period = 373 cycles → half = 186
-        // Each bit is represented by 2 half-periods (0-bit) or 4 half-periods (1-bit)
+        // 1-bit: 1 cycle of 2400 Hz → full period = 373 cycles → half = 186
+        // Each bit has two half-periods.
         const HALF_ZERO = 373;
         const HALF_ONE = 186;
 
         for (let i = 0; i < this.playBuffer.length; i++) {
             const byte = this.playBuffer[i];
-            for (let b = 7; b >= 0; b--) {
+            for (let b = 0; b < 8; b++) {
                 if ((byte >> b) & 1) {
-                    // Bit 1: two full cycles of 2400 Hz = 4 half-periods
-                    this._currentBitQueue.push(HALF_ONE, HALF_ONE, HALF_ONE, HALF_ONE);
+                    this._currentBitQueue.push(HALF_ONE, HALF_ONE);
                 } else {
                     // Bit 0: one full cycle of 1200 Hz = 2 half-periods
                     this._currentBitQueue.push(HALF_ZERO, HALF_ZERO);
@@ -428,6 +425,10 @@ export class Cassette {
         this._lastInputLevel = 0;
         this._cyclesSinceTransition = 0;
         this._recordBits = [];
+        this._halfCount = 0;
+        this._halfType = null;
+        this._writeByte = 0;
+        this._writeBitCount = 0;
     }
 
     // Stop recording and return CAS data
@@ -464,17 +465,11 @@ export class Cassette {
     }
 
     _recordHalf(type) {
-        if (!this._halfCount) this._halfCount = 0;
-        if (!this._halfType) this._halfType = type;
-
+        if (this._halfType !== type) this._halfCount = 0;
+        this._halfType = type;
         this._halfCount++;
-        if (type === 0 && this._halfCount >= 2) {
-            // Two long halves = one 0 bit
-            this._recordBits.push(0);
-            this._halfCount = 0;
-        } else if (type === 1 && this._halfCount >= 4) {
-            // Four short halves = one 1 bit
-            this._recordBits.push(1);
+        if (this._halfCount >= 2) {
+            this._recordBits.push(type);
             this._halfCount = 0;
         }
 
@@ -488,7 +483,7 @@ export class Cassette {
         while (this._recordBits && this._recordBits.length >= 8) {
             let byte = 0;
             for (let i = 0; i < 8; i++) {
-                byte = (byte << 1) | this._recordBits.shift();
+                byte |= this._recordBits.shift() << i;
             }
             this.recordBuffer.push(byte);
         }
@@ -499,7 +494,7 @@ export class Cassette {
         if (!this.recording) return;
         if (!this._writeByte) this._writeByte = 0;
         if (!this._writeBitCount) this._writeBitCount = 0;
-        this._writeByte = (this._writeByte << 1) | (bit ? 1 : 0);
+        this._writeByte |= (bit ? 1 : 0) << this._writeBitCount;
         this._writeBitCount++;
         if (this._writeBitCount >= 8) {
             this.recordBuffer.push(this._writeByte & 0xFF);
@@ -510,15 +505,8 @@ export class Cassette {
 
     // Motor control (PIA1 CA2)
     setMotor(on) {
-        if (on && !this.motorOn) {
-            // Motor just turned on — rewind to start
-            this._queuePos = 0;
-            this.cyclesInHalf = 0;
-            this.signalHigh = false;
-            if (this._currentBitQueue.length > 0) {
-                this.halfPeriod = this._currentBitQueue[0];
-            }
-        }
+        // Stopping a cassette motor pauses the tape; it does not rewind it.
+        // loadCAS (including selecting the same file again) provides rewind.
         this.motorOn = on;
     }
 

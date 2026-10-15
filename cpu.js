@@ -245,8 +245,8 @@ export class MC6809 {
     // === 8-bit ALU operations ===
     // Each returns the 8-bit result and sets appropriate flags
 
-    _add8(a, b) {
-        const r = a + b;
+    _add8(a, b, carry = 0) {
+        const r = a + b + carry;
         this.flagH = !!((a ^ b ^ r) & 0x10);
         this.flagN = !!(r & 0x80);
         this.flagZ = (r & 0xFF) === 0;
@@ -256,11 +256,11 @@ export class MC6809 {
     }
 
     _adc8(a, b) {
-        return this._add8(a, b + (this.flagC ? 1 : 0));
+        return this._add8(a, b, this.flagC ? 1 : 0);
     }
 
-    _sub8(a, b) {
-        const r = a - b;
+    _sub8(a, b, borrow = 0) {
+        const r = a - b - borrow;
         this.flagN = !!(r & 0x80);
         this.flagZ = (r & 0xFF) === 0;
         this.flagV = !!((a ^ b) & (a ^ r) & 0x80);
@@ -269,7 +269,7 @@ export class MC6809 {
     }
 
     _sbc8(a, b) {
-        return this._sub8(a, b + (this.flagC ? 1 : 0));
+        return this._sub8(a, b, this.flagC ? 1 : 0);
     }
 
     _and8(a, b) {

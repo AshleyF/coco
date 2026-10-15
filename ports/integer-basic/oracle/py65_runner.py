@@ -22,7 +22,7 @@ class InputFinished(Exception):
 
 
 class ConsoleMemory:
-    def __init__(self, source):
+    def __init__(self, source, event=None):
         self.data = bytearray(65536)
         self.data[0xe000:0xf000] = (ROOT/'reference/a1basic.bin').read_bytes()
         monitor = (ROOT/'oracle/vendor/wozmon.h').read_text()
@@ -32,9 +32,15 @@ class ConsoleMemory:
         self.pending = 0
         self.instruction_pc = 0
         self.output = []
+        self.event = event
+        self.event_ready = self.event_delivered = False
+        self.event_tail = ''
 
     def __getitem__(self, address):
         if address == 0xd011:
+            if self.event_ready and not self.event_delivered and not self.pending:
+                self.pending = self.event['key'] | 0x80
+                self.event_delivered = True
             if not self.pending and self.instruction_pc == 0xe003:
                 try:
                     key = ord(next(self.source))
@@ -55,12 +61,15 @@ class ConsoleMemory:
         if address == 0xd012:
             key = value & 0x7f
             self.output.append('\n' if key == 13 else chr(key))
+            if self.event and not self.event_ready:
+                self.event_tail = (self.event_tail+self.output[-1])[-len(self.event['after']):]
+                self.event_ready = self.event_tail == self.event['after']
         elif address < 0x1000 or 0xd010 <= address <= 0xd013:
             self.data[address] = value & 0xff
 
 
-def run(source, budget=10000000):
-    memory = ConsoleMemory(source)
+def run(source, budget=10000000, event=None):
+    memory = ConsoleMemory(source,event)
     cpu = MPU(memory=memory,pc=0xe000)
     try:
         for _ in range(budget):

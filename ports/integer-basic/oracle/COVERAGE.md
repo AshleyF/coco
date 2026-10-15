@@ -48,7 +48,7 @@ The appropriate conclusion is **one sign-path invariant needing historical expla
 
 ## Reproducing this snapshot
 
-ROM SHA-256: `5d8a3fe3c20c42903b226d67430c865ea5119557f88774c069e2e4dd80ad2c67`.
+ROM SHA-256: `5d8a3fe3c20c42903b226d67430c840ea5119557f88774c069e2e4dd80ad2c67`.
 
 ```sh
 cd ports/integer-basic
@@ -61,4 +61,4 @@ The golden replay regenerates `build/coverage.json`; the reachability scan write
 
 ## Execution coverage versus behavioral acceptance
 
-The 99.16% figure above belongs to the legacy exploratory corpus. The audited portable acceptance suite separately executes 1,444/1,545 entries (93.46%) and passes 873 independently anchored behavioral contracts. See [TEST-AUDIT.md](TEST-AUDIT.md) for assertion strength, quarantined observations, mutation tests, and remaining equivalence gaps. A passing-case witness is execution evidence, not proof that every instruction it touches is behaviorally distinguished by a test.
+The 99.16% figure above belongs to the legacy exploratory corpus. The audited portable acceptance suite separately executes 1,465/1,545 entries (94.82%) and passes 925 independently anchored behavioral contracts. See [TEST-AUDIT.md](TEST-AUDIT.md) for assertion strength, quarantined observations, mutation tests, and remaining equivalence gaps. A passing-case witness is execution evidence, not proof that every instruction it touches is behaviorally distinguished by a test.

@@ -12,7 +12,7 @@ def main():
         raise RuntimeError('reference fingerprint changed')
     failures = []
     for case in rows[1:]:
-        observed = run(case['input'],case['budget'])
+        observed = run(case['input'],case['budget'],case.get('event'))
         try:
             assert_behavior(case,observed)
             if observed['output'] != case['output'] or observed['status'] != case['status']:

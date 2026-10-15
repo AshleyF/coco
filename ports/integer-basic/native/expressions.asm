@@ -29,8 +29,14 @@ or_again
         ldu     #word_or
         jsr     keyword
         lbcc    expr_abort
+        tst     expr_is_string
+        beq     or_numeric_left
+        jsr     expr_syntax
+        lbra    expr_abort
+or_numeric_left
         jsr     parse_and
         std     rhs_be
+        jsr     numeric_type_check
         tst     error_code
         lbne    expr_abort
         puls    d
@@ -54,8 +60,14 @@ and_again
         ldu     #word_and
         jsr     keyword
         lbcc    expr_abort
+        tst     expr_is_string
+        beq     and_numeric_left
+        jsr     expr_syntax
+        lbra    expr_abort
+and_numeric_left
         jsr     parse_compare
         std     rhs_be
+        jsr     numeric_type_check
         tst     error_code
         lbne    expr_abort
         puls    d
@@ -71,6 +83,8 @@ and_false
         bra     and_again
 parse_compare
         jsr     parse_sum
+        tst     expr_is_string
+        lbne    string_compare_expression
 compare_again
         pshs    d
         tst     error_code
@@ -114,6 +128,10 @@ compare_push
         std     rhs_be
         puls    a
         sta     comparison
+        tst     expr_is_string
+        beq     compare_numeric_rhs
+        jsr     expr_syntax
+compare_numeric_rhs
         tst     error_code
         lbne    expr_abort
         ldd     rhs_be
@@ -188,11 +206,20 @@ sum_again
         cmpa    #'-'
         lbne    expr_abort
 sum_found
+        tst     expr_is_string
+        beq     sum_numeric_left
+        jsr     expr_syntax
+        lbra    expr_abort
+sum_numeric_left
         leax    1,x
         pshs    a
         jsr     parse_term
         std     rhs_be
         puls    a
+        tst     expr_is_string
+        beq     sum_numeric_rhs
+        jsr     expr_syntax
+sum_numeric_rhs
         tst     error_code
         lbne    expr_abort
         cmpa    #'-'
@@ -229,11 +256,20 @@ term_again
 term_found
         leax    1,x
 term_push
+        tst     expr_is_string
+        beq     term_numeric_left
+        jsr     expr_syntax
+        lbra    expr_abort
+term_numeric_left
         pshs    a
         jsr     parse_unary
         std     rhs_be
         puls    a
         sta     math_operator
+        tst     expr_is_string
+        beq     term_numeric_rhs
+        jsr     expr_syntax
+term_numeric_rhs
         tst     error_code
         lbne    expr_abort
         puls    d
@@ -253,10 +289,14 @@ parse_unary
         lbra    parse_primary
 unary_plus
         leax    1,x
-        lbra    parse_unary
+        jsr     parse_unary
+        jsr     numeric_type_check
+        rts
 unary_minus
         leax    1,x
         jsr     parse_unary
+        tst     expr_is_string
+        lbne    expr_syntax
         tst     error_code
         lbne    unary_done
         std     rhs_be
@@ -267,6 +307,8 @@ unary_done
         rts
 unary_not
         jsr     parse_unary
+        tst     expr_is_string
+        lbne    expr_syntax
         tst     error_code
         lbne    unary_done
         cmpd    #0
@@ -277,8 +319,11 @@ not_true
         ldd     #1
         rts
 parse_primary
+        clr     expr_is_string
         jsr     skip_spaces
         lda     ,x
+        cmpa    #'"'
+        lbeq    string_literal_expression
         cmpa    #'('
         beq     primary_paren
         cmpa    #'0'
@@ -286,6 +331,15 @@ parse_primary
         cmpa    #'9'
         lbls    parse_integer
 primary_function
+        ldu     #kw_peek
+        jsr     keyword
+        lbcs    peek_function
+        ldu     #kw_rnd
+        jsr     keyword
+        lbcs    rnd_function
+        ldu     #kw_len
+        jsr     keyword
+        lbcs    len_function
         ldu     #word_abs
         jsr     keyword
         bcs     primary_abs
@@ -297,12 +351,12 @@ primary_function
         lblo    expr_syntax
         cmpa    #'Z'
         lbhi    expr_syntax
-        suba    #'A'
-        lsla
-        tfr     a,b
-        clra
-        ldu     #variables
-        leau    d,u
+        leax    -1,x
+        jsr     variable_address
+        lda     ,x
+        cmpa    #'$'
+        lbeq    string_reference
+        jsr     numeric_after_name
         ldb     ,u             ; explicit original-layout LE scalar
         lda     1,u
         rts
@@ -334,6 +388,8 @@ function_paren
         jsr     primary_paren
         std     lhs_be
         puls    a
+        tst     expr_is_string
+        lbne    expr_syntax
         tst     error_code
         lbne    unary_done
         cmpa    #'A'
@@ -386,32 +442,49 @@ rhs_positive
 multiply_loop
         ldd     rhs_be
         beq     signed_result
-        subd    #1
-        std     rhs_be
+        lsr     rhs_be
+        ror     rhs_be+1
+        bcc     multiply_shift
         ldd     product_be
         addd    lhs_be
         cmpd    #32767
         lbhi    expr_range
         std     product_be
+multiply_shift
+        ldd     rhs_be
+        beq     signed_result
+        asl     lhs_be+1
+        rol     lhs_be
+        lbmi    expr_range
         bra     multiply_loop
 divide_magnitudes
         ldd     rhs_be
         lbeq    expr_range
+        clr     math_remainder_be
+        clr     math_remainder_be+1
+        lda     #16
+        sta     math_count
 divide_loop
-        ldd     lhs_be
+        asl     lhs_be+1
+        rol     lhs_be
+        rol     math_remainder_be+1
+        rol     math_remainder_be
+        asl     product_be+1
+        rol     product_be
+        ldd     math_remainder_be
         cmpd    rhs_be
-        blo     division_done
+        blo     divide_next_bit
         subd    rhs_be
-        std     lhs_be
-        ldd     product_be
-        addd    #1
-        std     product_be
-        bra     divide_loop
+        std     math_remainder_be
+        inc     product_be+1
+divide_next_bit
+        dec     math_count
+        bne     divide_loop
 division_done
         lda     math_operator
         cmpa    #'M'
         bne     signed_result
-        ldd     lhs_be
+        ldd     math_remainder_be
         std     product_be
 signed_result
         ldd     product_be
@@ -427,6 +500,9 @@ keyword pshs    x
 keyword_next
         lda     ,u+
         beq     keyword_yes
+        pshs    a
+        jsr     skip_spaces
+        puls    a
         cmpa    ,x+
         bne     keyword_no
         bra     keyword_next

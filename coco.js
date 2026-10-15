@@ -1,6 +1,6 @@
 // Browser UI for the shared CoCo machine.
-import { CoCo } from './coco-machine.js?v=joystick-input-2';
-import { casToWAV } from './cassette.js';
+import { CoCo } from './coco-machine.js?v=tape-fsk-1';
+import { casToWAV } from './cassette.js?v=tape-fsk-1';
 export { CoCo };
 
 // === UI wiring ===
@@ -199,7 +199,11 @@ function updateJoystickDisplay() {
 
 // === Cassette UI ===
 document.getElementById('loadTape')?.addEventListener('click', () => {
-    document.getElementById('tapeFile')?.click();
+    const input = document.getElementById('tapeFile');
+    if (!input) return;
+    // Selecting the same cassette again must fire change and rewind playback.
+    input.value = '';
+    input.click();
 });
 
 document.getElementById('tapeFile')?.addEventListener('change', async (e) => {

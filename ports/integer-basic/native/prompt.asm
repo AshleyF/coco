@@ -1,4 +1,4 @@
-; Apple-1 Integer BASIC -> MC6809E: immediate expression/scalar milestone.
+; Apple-1 Integer BASIC -> native MC6809E cassette application.
 ; See native/PORTING.md for source correspondence and current boundaries.
 ; Requires initialized Color BASIC: KEYIN [$A000], CHROUT [$A002].
 ; Original structures are LE bytes. Native scratch words labelled *_be are BE.
@@ -10,13 +10,29 @@ warm    jsr     crout
 prompt  lsr     run_flag
         lda     #'>'
         jsr     cout
-        ldy     #buffer
+        jsr     auto_prompt
 read_line
         jsr     rdkey
         cmpa    #8
         bne     echo_key
         lda     #'_'
 echo_key jsr     cout
+        cmpa    #4
+        bne     input_not_auto_cancel
+        tst     auto_active
+        beq     input_not_auto_cancel
+        tst     auto_number_be
+        bpl     auto_cancel_read
+        clr     auto_active
+        bra     input_not_auto_cancel
+auto_cancel_read
+        clr     auto_active
+        jsr     rdkey
+        cmpa    #13
+        bne     auto_cancel_read
+        jsr     cout
+        lbra    prompt
+input_not_auto_cancel
         cmpa    #13
         lbeq    line_done
         cmpa    #'_'
@@ -44,7 +60,7 @@ line_done
         lbeq    warm
         lbra    prompt
 
- ; Immediate statement front end; full original tokenization still pending.
+ ; Native statement front end; stored records render into this source grammar.
 statement
         ldx     #buffer
 statement_at
@@ -52,6 +68,42 @@ statement_at
         jsr     skip_spaces
         lda     ,x
         lbeq    statement_ok
+        ldu     #kw_plot
+        jsr     keyword
+        lbcs    plot_statement
+        ldu     #kw_color
+        jsr     keyword
+        lbcs    color_statement
+        ldu     #kw_lomem
+        jsr     keyword
+        lbcs    lomem_statement
+        ldu     #kw_himem
+        jsr     keyword
+        lbcs    himem_statement
+        ldu     #kw_poke
+        jsr     keyword
+        lbcs    poke_statement
+        ldu     #kw_call
+        jsr     keyword
+        lbcs    call_statement
+        ldu     #kw_input
+        jsr     keyword
+        lbcs    input_statement
+        ldu     #kw_dim
+        jsr     keyword
+        lbcs    dim_statement
+        ldu     #kw_for
+        jsr     keyword
+        lbcs    for_statement
+        ldu     #kw_next
+        jsr     keyword
+        lbcs    next_statement
+        ldu     #kw_gosub
+        jsr     keyword
+        lbcs    gosub_statement
+        ldu     #kw_return
+        jsr     keyword
+        lbcs    return_statement
         ldu     #kw_goto
         jsr     keyword
         lbcs    goto_statement
@@ -73,17 +125,11 @@ statement_at
         ldu     #word_let
         jsr     keyword
         jsr     skip_spaces
-        lda     ,x+
-        cmpa    #'A'
-        lblo    syntax_error
-        cmpa    #'Z'
-        lbhi    syntax_error
-        suba    #'A'
-        lsla
-        tfr     a,b
-        clra
-        ldu     #variables
-        leau    d,u
+        jsr     variable_address
+        lda     ,x
+        cmpa    #'$'
+        lbeq    string_assignment
+        jsr     numeric_after_name
         stu     assignment_be
         jsr     skip_spaces
         lda     ,x+
@@ -91,6 +137,10 @@ statement_at
         lbne    syntax_error
         jsr     parse_or
         std     result_be
+        tst     expr_is_string
+        beq     assignment_numeric
+        jsr     expr_syntax
+assignment_numeric
         jsr     finish_expression
         tsta
         lbne    statement_return
@@ -147,7 +197,7 @@ print_item
         lbeq    print_empty
         cmpa    #'"'
         lbeq    parse_string
-        jsr     parse_or
+        jsr     print_expression
         std     result_be
         jsr     finish_print_item
         tsta
@@ -155,6 +205,8 @@ print_item
         stx     print_cursor_be
         tst     validation_mode
         lbne    print_separator
+        tst     expr_is_string
+        lbne    print_string_value
         clr     negative
         ldd     result_be
         std     value_be
@@ -167,6 +219,17 @@ print_item
         std     value_be
 print_magnitude
         jsr     prdec
+        bra     print_separator
+print_string_value
+        ldx     expr_string_be
+        ldy     expr_length_be
+        cmpy    #0
+        beq     print_separator
+print_string_bytes
+        lda     ,x+
+        jsr     cout
+        leay    -1,y
+        bne     print_string_bytes
 print_separator
         ldx     print_cursor_be
         lda     ,x
@@ -183,12 +246,12 @@ print_separator
         sta     tab_target
         jsr     spaces_to_target
         ldx     print_cursor_be
-        bra     print_item
+        lbra    print_item
 print_semicolon
         jsr     skip_spaces
         lda     ,x
         lbeq    statement_ok
-        bra     print_item
+        lbra    print_item
 print_empty
         tst     validation_mode
         bne     statement_ok
@@ -204,7 +267,7 @@ print_minimum_error
 finish_expression
         jsr     check_expression_error
         tsta
-        bne     statement_return
+        lbne    statement_return
         jsr     skip_spaces
         lda     ,x
         lbne    syntax_error
@@ -213,7 +276,7 @@ finish_expression
 finish_print_item
         jsr     check_expression_error
         tsta
-        bne     statement_return
+        lbne    statement_return
         jsr     skip_spaces
         lda     ,x
         beq     statement_ok
@@ -226,9 +289,29 @@ check_expression_error
         lda     error_code
         cmpa    #2
         lbeq    range_error
+        cmpa    #3
+        lbeq    array_range_error
+        cmpa    #4
+        lbeq    string_range_error
+        cmpa    #5
+        lbeq    dimension_error
+        cmpa    #6
+        lbeq    storage_full_error
+        cmpa    #7
+        lbeq    string_overflow_error
+        cmpa    #8
+        lbeq    byte_range_error
+        cmpa    #9
+        lbeq    too_long_error
         tsta
         lbne    syntax_error
         clra
+        rts
+numeric_type_check
+        tst     expr_is_string
+        beq     numeric_type_done
+        jsr     expr_syntax
+numeric_type_done
         rts
 parse_string
         leax    1,x
@@ -242,7 +325,7 @@ find_quote
         stu     string_end_be
         jsr     finish_print_item
         tsta
-        bne     statement_return
+        lbne    statement_return
         stx     print_cursor_be
         tst     validation_mode
         lbne    print_separator
@@ -271,6 +354,7 @@ parse_integer
         clr     value_be
         clr     value_be+1
 number_digits
+        jsr     skip_spaces
         lda     ,x
         cmpa    #'0'
         blo     number_done
@@ -350,6 +434,9 @@ skip_place
 syntax_error
         ldx     #syntax_message
         bra     report_error
+too_long_error
+        ldx     #too_long_message
+        bra     report_error
 range_error
         ldx     #range_message
 report_error
@@ -366,6 +453,27 @@ emit_string
         bra     emit_string
 string_done
         rts
+; Validate the edited source with the original grammar before any effects.
+; The recognizer is native code; its grammar tables and overlapping byte stacks
+; are relocated away from language values and resident Color BASIC workspace.
+validate_original_source
+        pshs    b,x,y,u
+        ldy     #v_buffer
+original_source_copy
+        lda     ,x+
+        beq     original_source_end
+        ora     #$80
+        sta     ,y+
+        bra     original_source_copy
+original_source_end
+        lda     #$df
+        sta     ,y
+        tfr     y,d
+        subd    #v_buffer
+        stb     v_input_count
+        jsr     v_validate
+        lda     v_error
+        puls    b,x,y,u,pc
         include "expressions.asm"
 
 cold    jsr     program_init
@@ -387,15 +495,33 @@ clr_cmd ldd     lomem
         clr     for_nest_count
         clr     gosub_nest_count
         clr     synpag
+        jsr     storage_init
         ldu     #variables
-        ldb     #52
+        ldy     #572
 clear_scalar
         clr     ,u+
-        decb
+        leay    -1,y
         bne     clear_scalar
         rts
-rdkey   jsr     [$a000]
-        beq     rdkey
+; RUN polls KEYIN without consuming queued script input in the console adapter.
+; A real waiting character stops the program and is retained for the prompt.
+poll_keyboard
+        pshs    x,y,u
+        jsr     [$a000]
+poll_keyboard_return
+        puls    x,y,u
+        tsta
+        beq     key_done
+        sta     pending_key
+        rts
+rdkey   lda     pending_key
+        beq     rdkey_wait
+        clr     pending_key
+        bra     key_normalize
+rdkey_wait
+        jsr     [$a000]
+        beq     rdkey_wait
+key_normalize
         cmpa    #'a'
         blo     key_done
         cmpa    #'z'
@@ -428,6 +554,8 @@ syntax_message fcc '*** SYNTAX ERR'
         fcb     13,0
 range_message fcc '*** >32767 ERR'
         fcb     13,0
+too_long_message fcc '*** TOO LONG ERR'
+        fcb     13,0
 decimal_places fdb 10000,1000,100,10,1
 decimal_end
 workspace
@@ -448,12 +576,15 @@ twice_be fdb   0
 string_begin_be fdb 0
 string_end_be fdb 0
 error_code fcb 0
+pending_key fcb 0
 comparison fcb 0
 math_operator fcb 0
 math_negative fcb 0
 lhs_be fdb 0
 rhs_be fdb 0
 product_be fdb 0
+math_remainder_be fdb 0
+math_count fcb 0
 result_be fdb 0
 assignment_be fdb 0
 print_cursor_be fdb 0
@@ -462,4 +593,8 @@ variables equ $4000
 workspace_end
 buffer  rmb    129
         include "programs.asm"
+        include "storage.asm"
+        include "io.asm"
+        include "memory.asm"
+        include "../build/original-parser.inc"
         end     start

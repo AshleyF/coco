@@ -1,16 +1,24 @@
-// Native-only memory convention check; deliberately separate from portable
-// transcript acceptance. Original numeric structures must remain little-endian.
+// Layout assertions for the released native engine, separate from transcripts.
 import assert from 'node:assert/strict';
-import { runNative } from './runner.mjs';
-for (const value of [1,255,256,32767,-1,-256,-32767]) {
-    const result = runNative(`A=${value}\nPRINT A\n`);
-    assert.equal(result.status,0);
-    assert.ok(result.output.includes(`\n${value}\n`));
-    assert.equal(result.machine.mem.read(0x4000), value & 0xff);
-    assert.equal(result.machine.mem.read(0x4001), (value >> 8) & 0xff);
-}
-const cleared = runNative('A=256\nCLR\nPRINT A\n');
-assert.equal(cleared.status,0);
-assert.equal(cleared.machine.mem.read(0x4000),0);
-assert.equal(cleared.machine.mem.read(0x4001),0);
-console.log('Native scalar LE storage, signed byte boundaries, and CLR passed.');
+import {readFileSync} from 'node:fs';
+import {runNative,symbols} from './runner.mjs';
+assert.ok(symbols.t_code_end<0x4000,'Interpreter overlaps private workspace');
+assert.equal(symbols.t_lomem,0x404a);
+assert.equal(symbols.t_gstk_pverbl,0x4100);
+assert.equal(symbols.t_buffer,0x4200);
+assert.equal(symbols.t_y,0x4300);
+assert.equal(symbols.t_syntabl_index,0x4c20);
+assert.equal(symbols.t_syntabl2,0x4d03);
+assert.ok(symbols.t_read_result<0x4c00,'Native scratch overlaps grammar');
+const fresh=runNative('');
+assert.equal(fresh.status,0);
+const value=(r,address)=>r.machine.mem.ram[address]+256*r.machine.mem.ram[address+1];
+assert.equal(value(fresh,symbols.t_lomem),0x5000);
+assert.equal(value(fresh,symbols.t_himem),0x5800);
+const array=runNative('DIM A(2)\nA(1)=256\nA(2)=-257\nPRINT A\nPRINT A(1)\nPRINT A(2)\n');
+assert.equal(array.status,0);
+assert.deepEqual([...array.machine.mem.ram.slice(0x5004,0x5008)],[0,1,255,254]);
+assert.deepEqual(array.output.split('\n').filter(x=>/^-?\d+$/.test(x)),['256','256','-257']);
+const rom=readFileSync('reference/a1basic.bin');
+assert.deepEqual(Buffer.from(fresh.machine.mem.ram.slice(0x4c00,0x4e00)),rom.subarray(0xc00,0xe00));
+console.log('Released native layout, private aliases, grammar bytes, initial capacity, scalar/array alias and LE values passed.');

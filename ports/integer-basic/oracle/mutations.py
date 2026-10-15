@@ -53,6 +53,8 @@ def main():
         ('escape-cancel-character-wrong',[(0x28b,0x9b,0x9a)]),
         ('auto-default-eleven-instead-of-ten',[(0x7f2,0x0a,0x0b)]),
         ('mixed-input-sentinel-wrong',[(0xfc4,0x74,0x75)]),
+        ('run-ignores-pending-key',[(0x872,0x30,0xea),(0x873,0x4f,0xea)]),
+        ('parser-stack-capacity-reduced-by-one',[(0x2dd,0x20,0x1f)]),
     ])
     report = []
     with tempfile.TemporaryDirectory() as temp:

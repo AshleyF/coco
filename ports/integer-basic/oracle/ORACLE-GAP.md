@@ -11,7 +11,7 @@ The paper uses coverage minus mutation score to guide test effort, distinguishin
 - Invert a conditional branch by exchanging its positive/negative condition.
 - Flip bit 0 of an immediate operand for supported load, comparison, arithmetic, and logic instructions.
 
-There are 81 mutants in the current fixed sample. The 21 hand-selected regression faults remain separate; their success rate must not stand in for a broader mutation score.
+There are 81 mutants in the current fixed sample. The 23 hand-selected regression faults remain separate; their success rate must not stand in for a broader mutation score.
 
 For each ROM region, the generated report includes instruction coverage, raw mutation score, covered mutation score, both gaps in percentage points, sample counts, and an investigation recommendation. No mutations in a region means **unknown**, not zero or 100%. Negative gaps are retained. Surviving mutants are retained until reviewed; we do not assume they are equivalent or assume each proves a missing assertion.
 

@@ -129,6 +129,14 @@ def corpus(count, seed):
 def execute(case, runner, coverage=None, rom=None):
     env = os.environ.copy()
     env.pop('APPLE1_COVERAGE', None)
+    env.pop('BASIC_KEY_AFTER_OUTPUT', None)
+    env.pop('BASIC_KEY_BYTE', None)
+    if case.get('event'):
+        event = case['event']
+        if not event['after'] or len(event['after'].encode('ascii')) >= 256 or not 1 <= event['key'] <= 127:
+            raise ValueError('key events require a nonempty ASCII anchor below 256 bytes and an ASCII key 1..127')
+        env['BASIC_KEY_AFTER_OUTPUT'] = event['after']
+        env['BASIC_KEY_BYTE'] = str(event['key'])
     if coverage:
         env['APPLE1_COVERAGE'] = str(coverage)
     # Only default Apple runner receives ROM/budget args; adapters get stdin.

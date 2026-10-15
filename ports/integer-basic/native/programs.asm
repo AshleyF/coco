@@ -9,11 +9,21 @@ program_init
         clr     run_active
         clr     validation_mode
         clr     sink_mode
+        clr     auto_active
+        clr     conditional_depth
         clr     branch_taken
+        clr     resume_offset_be
+        clr     resume_offset_be+1
         clr     listing_mode
         rts
 command_line
         ldx     #buffer
+        jsr     validate_original_source
+        tsta
+        beq     command_line_valid
+        sta     error_code
+        lbra    check_expression_error
+command_line_valid
         jsr     skip_spaces
         lda     ,x
         cmpa    #'0'
@@ -21,6 +31,9 @@ command_line
         cmpa    #'9'
         lbls    edit_line
 command_words
+        ldu     #kw_auto
+        jsr     keyword
+        lbcs    command_auto
         ldu     #kw_list
         jsr     keyword
         lbcs    command_list
@@ -33,7 +46,24 @@ command_words
         ldu     #kw_run
         jsr     keyword
         lbcs    command_run
-        lbra    statement_at
+        ; Original source is syntax-checked before execution. A malformed
+        ; immediate statement must not allocate variables or emit partial PRINT.
+        pshs    x
+        lda     #1
+        sta     validation_mode
+        jsr     statement_at
+        pshs    a
+        clr     validation_mode
+        puls    a
+        puls    x
+        tsta
+        lbeq    statement_at
+        tst     error_code
+        bne     immediate_validation_error
+        lda     #1
+        sta     error_code
+immediate_validation_error
+        lbra    check_expression_error
 command_scr
         jsr     skip_spaces
         lda     ,x
@@ -70,7 +100,7 @@ edit_line
         ldd     new_length_be
         subd    old_length_be
         addd    program_end_be
-        cmpd    #program_limit
+        cmpd    storage_bottom_be
         lbhs    program_full
         jsr     remove_record
         ldd     new_length_be
@@ -105,6 +135,7 @@ copy_tokens
         std     program_end_be
         ldu     program_end_be
         clr     ,u
+        jsr     auto_advance
         lda     #2             ; numbered input returns directly to prompt
         rts
 edit_delete
@@ -118,6 +149,7 @@ edit_delete
         bne     edit_done
         jsr     remove_record
 edit_done
+        jsr     auto_advance
         lda     #2
         rts
 edit_error
@@ -300,6 +332,28 @@ render_loop
         beq     render_number
         cmpa    #$80
         lbhs    render_keyword
+        cmpa    #'('
+        bne     render_raw_boundary
+        ; Original variable-array names and LEN( are single listing tokens.
+        ; Keep the attached parenthesis on the same line as the name.
+        ldb     render_last
+        cmpb    #'$'
+        beq     render_character
+        cmpb    #'0'
+        blo     render_check_len
+        cmpb    #'9'
+        bls     render_character
+        cmpb    #'A'
+        blo     render_raw_boundary
+        cmpb    #'Z'
+        bls     render_character
+render_check_len
+        tstb
+        bne     render_raw_boundary
+        ldb     render_token
+        cmpb    #$97
+        beq     render_character
+render_raw_boundary
         pshs    a
         ldb     #32
         jsr     list_wrap
@@ -319,7 +373,7 @@ render_character
         puls    a
         sta     render_last
         jsr     cout
-        bra     render_loop
+        lbra    render_loop
 render_number
         ldb     ,x+
         lda     ,x+
@@ -332,7 +386,7 @@ render_number
         puls    x
         lda     #'0'
         sta     render_last
-        bra     render_loop
+        lbra    render_loop
 render_keyword
         sta     render_token
         ldu     #token_words
@@ -350,6 +404,15 @@ render_word_found
         subb    2,u             ; reserve keyword width at token boundaries
         jsr     list_wrap
 render_leading
+        lda     1,u
+        bita    #16
+        beq     render_regular_leading
+        lda     render_last
+        beq     render_word
+        cmpa    #' '
+        beq     render_word
+        bra     render_pre_space
+render_regular_leading
         lda     1,u
         bita    #2
         bne     render_pre_space
@@ -419,6 +482,7 @@ parse_line_range
         jsr     parse_or
         std     range_first_be
         std     range_last_be
+        jsr     numeric_type_check
         tst     error_code
         bne     range_args_error
         jsr     skip_spaces
@@ -428,6 +492,7 @@ parse_line_range
         leax    1,x
         jsr     parse_or
         std     range_last_be
+        jsr     numeric_type_check
         tst     error_code
         bne     range_args_error
         cmpd    range_first_be
@@ -535,6 +600,7 @@ command_run
         beq     run_all
         jsr     parse_or
         std     edit_number_be
+        jsr     numeric_type_check
         jsr     finish_expression
         tsta
         lbne    statement_return
@@ -553,6 +619,8 @@ run_start
         stu     run_record_be
         jsr     clr_cmd
 run_preserve_variables
+        clr     resume_offset_be
+        clr     resume_offset_be+1
         lda     #1
         sta     run_active
 run_records
@@ -562,6 +630,13 @@ run_records
         ldb     1,u
         lda     2,u
         std     run_number_be
+        ; NEXT and RETURN resume a statement cursor directly in the original;
+        ; its keyboard check applies to new record entries, not those resumes.
+        ldd     resume_offset_be
+        bne     run_after_key_poll
+        jsr     poll_keyboard
+        lbne    run_statement_error
+run_after_key_poll
         clra
         ldb     ,u
         leau    d,u
@@ -569,7 +644,7 @@ run_records
         ldx     run_record_be
         leax    3,x
         jsr     render_source
-        jsr     execute_source
+        jsr     execute_resumed_source
         tsta
         lbne    run_statement_error
         tst     run_active
@@ -599,8 +674,14 @@ bad_branch
 ; Execute/validate colon-separated statements from rendered source. Quoted
 ; colons stay inside literals; REM consumes the rest of the physical line.
 execute_source
+        clr     resume_offset_be
+        clr     resume_offset_be+1
+execute_resumed_source
         clr     branch_taken
         ldd     #source_buffer
+        addd    resume_offset_be
+        clr     resume_offset_be
+        clr     resume_offset_be+1
         std     statement_cursor_be
 source_statement
         ldx     statement_cursor_be
@@ -663,6 +744,7 @@ source_continue
 goto_statement
         jsr     parse_or
         std     branch_number_be
+        jsr     numeric_type_check
         jsr     finish_expression
         tsta
         lbne    statement_return
@@ -671,6 +753,15 @@ branch_to_number
         lbne    statement_ok
         ldd     branch_number_be
         std     edit_number_be
+        jsr     resolve_branch
+        tsta
+        lbne    statement_return
+        tst     run_active
+        beq     immediate_branch
+        stu     run_next_be
+        inc     branch_taken
+        lbra    statement_ok
+resolve_branch
         jsr     find_edit_position
         ldu     record_be
         cmpu    program_end_be
@@ -679,18 +770,325 @@ branch_to_number
         lda     2,u
         cmpd    edit_number_be
         lbne    bad_branch
-        tst     run_active
-        beq     immediate_branch
-        stu     run_next_be
-        inc     branch_taken
-        lbra    statement_ok
+        clra
+        rts
 immediate_branch
         stu     run_record_be
         lbra    run_preserve_variables
 
+; Eight language frames, separate from the CPU stack. Return cursors identify
+; a record and rendered-source offset, so rebuilding the source is safe.
+gosub_statement
+        tst     run_active
+        bne     gosub_allowed
+        tst     conditional_depth
+        lbeq    syntax_error
+gosub_allowed
+        jsr     parse_or
+        std     branch_number_be
+        jsr     numeric_type_check
+        jsr     finish_expression
+        tsta
+        lbne    statement_return
+        tst     validation_mode
+        lbne    statement_ok
+        lda     gosub_nest_count
+        cmpa    #8
+        lbhs    gosub_full
+        ; Resolve the target before changing the return stack.
+        ldd     branch_number_be
+        std     edit_number_be
+        jsr     resolve_branch
+        tsta
+        lbne    statement_return
+        stu     gosub_target_be
+        ldb     gosub_nest_count
+        lslb
+        lslb
+        ldu     #gosub_frames
+        leau    b,u
+        tst     run_active
+        bne     gosub_program_return
+        clr     ,u
+        clr     1,u
+        clr     2,u
+        clr     3,u
+        inc     gosub_nest_count
+        ldd     gosub_target_be
+        std     run_record_be
+        lbra    run_preserve_variables
+gosub_program_return
+        ldd     next_statement_be
+        beq     gosub_next_line
+        subd    #source_buffer
+        std     2,u
+        ldd     run_record_be
+        bra     gosub_save
+gosub_next_line
+        clr     2,u
+        clr     3,u
+        ldx     run_record_be
+        clra
+        ldb     ,x
+        leax    d,x
+        tfr     x,d
+gosub_save
+        std     ,u
+        inc     gosub_nest_count
+        ldd     gosub_target_be
+        std     run_next_be
+        inc     branch_taken
+        lbra    statement_ok
+return_statement
+        jsr     skip_spaces
+        lda     ,x
+        lbne    syntax_error
+        tst     run_active
+        bne     return_allowed
+        tst     conditional_depth
+        lbeq    syntax_error
+return_allowed
+        tst     validation_mode
+        lbne    statement_ok
+        tst     gosub_nest_count
+        lbeq    bad_return
+        dec     gosub_nest_count
+        ldb     gosub_nest_count
+        lslb
+        lslb
+        ldu     #gosub_frames
+        leau    b,u
+        ldd     ,u
+        beq     return_to_prompt
+        std     run_next_be
+        ldd     2,u
+        std     resume_offset_be
+        inc     branch_taken
+        lbra    statement_ok
+return_to_prompt
+        clr     run_active
+        lbra    statement_ok
+gosub_full
+        ldx     #gosub_message
+        lbra    report_error
+bad_return
+        ldx     #return_message
+        lbra    report_error
+
+; Numeric names are one letter with an optional single digit, not arbitrary
+; multi-letter identifiers. Keep plain A-Z at their established LE locations.
+variable_address
+        lda     ,x+
+        cmpa    #'A'
+        blo     variable_invalid
+        cmpa    #'Z'
+        bhi     variable_invalid
+        suba    #'A'
+        pshs    a
+        jsr     skip_spaces
+        puls    a
+        ldb     ,x
+        cmpb    #'0'
+        blo     variable_plain
+        cmpb    #'9'
+        bhi     variable_plain
+        leax    1,x
+        subb    #'0'
+        pshs    b
+        ldb     #10
+        mul
+        addb    ,s+
+        adca    #0
+        lslb
+        rola
+        addd    #variables+52
+        tfr     d,u
+        stu     variable_key_be
+        jsr     skip_spaces
+        lda     ,x
+        cmpa    #'$'
+        beq     variable_invalid
+        rts
+variable_plain
+        lsla
+        tfr     a,b
+        clra
+        addd    #variables
+        tfr     d,u
+        stu     variable_key_be
+        rts
+variable_invalid
+        ldu     #variables
+        lbra    expr_syntax
+
+; FOR frames: variable pointer, limit, step, return record, source offset.
+; Frame words are private native BE; language numeric values remain LE.
+for_statement
+        tst     run_active
+        bne     for_allowed
+        tst     conditional_depth
+        lbeq    syntax_error
+for_allowed
+        jsr     skip_spaces
+        jsr     variable_address
+        clr     storage_kind
+        jsr     ensure_descriptor
+        ldu     7,u
+        stu     for_variable_be
+        jsr     skip_spaces
+        lda     ,x+
+        cmpa    #'='
+        lbne    syntax_error
+        jsr     parse_or
+        std     for_initial_be
+        jsr     numeric_type_check
+        jsr     check_expression_error
+        tsta
+        lbne    statement_return
+        ldu     #kw_to
+        jsr     keyword
+        lbcc    syntax_error
+        jsr     parse_or
+        std     for_limit_be
+        jsr     numeric_type_check
+        jsr     check_expression_error
+        tsta
+        lbne    statement_return
+        ldd     #1
+        std     for_step_be
+        jsr     numeric_type_check
+        ldu     #kw_step
+        jsr     keyword
+        bcc     for_finish
+        jsr     parse_or
+        std     for_step_be
+for_finish
+        jsr     numeric_type_check
+        jsr     finish_expression
+        tsta
+        lbne    statement_return
+        tst     validation_mode
+        lbne    statement_ok
+        lda     for_nest_count
+        cmpa    #8
+        lbhs    for_full
+        ldb     #10
+        mul
+        ldu     #for_frames
+        leau    d,u
+        ldd     for_variable_be
+        std     ,u
+        ldx     for_variable_be
+        ldd     for_initial_be
+        stb     ,x
+        sta     1,x
+        ldd     for_limit_be
+        std     2,u
+        ldd     for_step_be
+        std     4,u
+        ldd     next_statement_be
+        beq     for_next_line
+        subd    #source_buffer
+        std     8,u
+        ldd     run_record_be
+        bra     for_save_cursor
+for_next_line
+        clr     8,u
+        clr     9,u
+        ldd     run_next_be
+for_save_cursor
+        std     6,u
+        inc     for_nest_count
+        lbra    statement_ok
+next_statement
+        tst     run_active
+        bne     next_allowed
+        tst     conditional_depth
+        lbeq    syntax_error
+next_allowed
+        jsr     skip_spaces
+        jsr     variable_address
+        clr     storage_kind
+        jsr     ensure_descriptor
+        ldu     7,u
+        stu     for_variable_be
+        jsr     check_expression_error
+        tsta
+        lbne    statement_return
+        jsr     skip_spaces
+        stx     next_cursor_be
+        lda     ,x
+        beq     next_valid_tail
+        cmpa    #','
+        lbne    syntax_error
+next_valid_tail
+        tst     validation_mode
+        lbne    next_more_items
+        lda     for_nest_count
+next_search
+        tsta
+        lbeq    bad_next
+        deca
+        sta     for_search_count
+        ldb     #10
+        mul
+        ldu     #for_frames
+        leau    d,u
+        ldd     ,u
+        cmpd    for_variable_be
+        beq     next_found
+        lda     for_search_count
+        bra     next_search
+next_found
+        lda     for_search_count
+        inca
+        sta     for_nest_count
+        ldx     for_variable_be
+        ldb     ,x
+        lda     1,x
+        addd    4,u
+        lbvs    range_error
+        stb     ,x
+        sta     1,x
+        subd    2,u
+        lbvs    range_error
+        tst     4,u
+        bmi     next_descending
+        cmpd    #0
+        bgt     next_complete
+        bra     next_repeat
+next_descending
+        cmpd    #0
+        blt     next_complete
+next_repeat
+        ldd     6,u
+        std     run_next_be
+        ldd     8,u
+        std     resume_offset_be
+        inc     branch_taken
+        lbra    statement_ok
+next_complete
+        dec     for_nest_count
+next_more_items
+        ldx     next_cursor_be
+        lda     ,x
+        lbeq    statement_ok
+        leax    1,x
+        lbra    next_statement
+bad_next
+        ldx     #next_message
+        lbra    report_error
+for_full
+        ldx     #for_message
+        lbra    report_error
+
 if_statement
         jsr     parse_or
         std     if_condition_be
+        tst     expr_is_string
+        beq     if_numeric_condition
+        jsr     expr_syntax
+if_numeric_condition
         jsr     check_expression_error
         tsta
         lbne    statement_return
@@ -698,11 +1096,12 @@ if_statement
         jsr     keyword
         lbcc    syntax_error
         tst     validation_mode
-        bne     then_statement
+        bne     if_validate_consequent
         ldd     if_condition_be
         bne     then_statement
         ; A false IF still requires syntactically valid source. Validate its
         ; consequent with output/writes and runtime arithmetic errors suppressed.
+if_validate_consequent
         lda     validation_mode
         ldb     run_active
         pshs    d
@@ -724,6 +1123,12 @@ if_statement
         lbeq    range_error
         lbra    syntax_error
 then_statement
+        inc     conditional_depth
+        jsr     then_body
+        pshs    a
+        dec     conditional_depth
+        puls    a,pc
+then_body
         jsr     skip_spaces
         lda     ,x
         cmpa    #'0'
@@ -754,6 +1159,8 @@ then_end
         lbra    statement_ok
 
 kw_list fcc 'LIST'
+        fcb 0
+kw_auto fcc 'AUTO'
         fcb 0
 kw_del fcc 'DEL'
         fcb 0
@@ -793,6 +1200,20 @@ kw_rnd fcc 'RND'
         fcb 0
 kw_len fcc 'LEN'
         fcb 0
+kw_peek fcc 'PEEK'
+        fcb 0
+kw_poke fcc 'POKE'
+        fcb 0
+kw_call fcc 'CALL'
+        fcb 0
+kw_plot fcc 'PLOT'
+        fcb 0
+kw_lomem fcc 'LOMEM'
+        fcb 0
+kw_himem fcc 'HIMEM'
+        fcb 0
+kw_color fcc 'COLOR'
+        fcb 0
 ; token, format flags (post/pre space, REM, statement), width, pad, word ptr
 token_words
         fcb $80,9,5,0
@@ -827,9 +1248,9 @@ token_words
         fdb kw_input
         fcb $8f,9,3,0
         fdb kw_dim
-        fcb $90,0,3,0
+        fcb $90,17,3,0
         fdb word_abs
-        fcb $91,0,3,0
+        fcb $91,17,3,0
         fdb word_sgn
         fcb $92,1,3,0
         fdb word_not
@@ -839,17 +1260,39 @@ token_words
         fdb word_or
         fcb $95,3,3,0
         fdb word_mod
-        fcb $96,0,3,0
+        fcb $96,17,3,0
         fdb kw_rnd
-        fcb $97,0,3,0
+        fcb $97,16,3,0
         fdb kw_len
         fcb $98,9,3,0
         fdb word_clr
+        fcb $99,17,4,0
+        fdb kw_peek
+        fcb $9a,9,4,0
+        fdb kw_poke
+        fcb $9b,9,4,0
+        fdb kw_call
+        fcb $9c,9,4,0
+        fdb kw_plot
+        fcb $9d,8,5,0
+        fdb kw_lomem
+        fcb $9e,8,5,0
+        fdb kw_himem
+        fcb $9f,8,5,0
+        fdb kw_color
         fcb 0,0,0,0
         fdb 0
 end_message fcc '*** END ERR'
         fcb 13,0
 branch_message fcc '*** BAD BRANCH ERR'
+        fcb 13,0
+gosub_message fcc '*** >8 GOSUBS ERR'
+        fcb 13,0
+return_message fcc '*** BAD RETURN ERR'
+        fcb 13,0
+for_message fcc '*** >8 FORS ERR'
+        fcb 13,0
+next_message fcc '*** BAD NEXT ERR'
         fcb 13,0
 memory_message fcc '*** MEM FULL ERR'
         fcb 13,0
@@ -880,6 +1323,17 @@ run_active fcb 0
 branch_taken fcb 0
 if_condition_be fdb 0
 branch_number_be fdb 0
+resume_offset_be fdb 0
+gosub_frames rmb 32
+gosub_target_be fdb 0
+conditional_depth fcb 0
+for_frames rmb 80
+for_variable_be fdb 0
+for_initial_be fdb 0
+for_limit_be fdb 0
+for_step_be fdb 0
+for_search_count fcb 0
+next_cursor_be fdb 0
 identifier_mode fcb 0
 render_string fcb 0
 render_rem fcb 0

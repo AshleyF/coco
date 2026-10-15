@@ -1,94 +1,132 @@
-# Native 6809 port: expressions, scalars, stored programs, and branches
+# Native Apple-1 Integer BASIC for the CoCo
 
-`prompt.asm` builds a native 6809E application with entry at `$3000` and program-handling code at `$2000`. `make native` packages it as `build/prompt.cas` for CLOADM/EXEC; the DECB binary is retained for internal tests. It runs in the shared CoCo emulator using initialized Color BASIC's KEYIN and CHROUT vectors, and requires at least 32K RAM. Stack: `$7F00`. Scalar storage: `$4000-$4033`; token/render buffers: `$4800`/`$4900`; program arena: `$5000-$6FFF`. No 6502 emulator, Apple ROM, or host BASIC implementation is present in this binary.
+`make native` builds `build/prompt.bin`, `build/prompt.cas`, and `build/prompt.wav`.
+Boot a 32K or larger CoCo to Color BASIC, select the CAS file using **Tape**, and
+enter `CLOADM`, then `EXEC`. Entry is `$0800`. Reset returns to Color BASIC.
+The WAV contains audio for the same cassette payload.
 
-## Implemented behavior
+## Implementation and correspondence
 
-- Cold initialization, prompt and logical newline conventions, immediate-mode error recovery.
-- Uppercase keyboard normalization, underscore deletion, ESC line cancellation, and bounded line input. Physical CoCo backspace is accepted as an underscore-delete alias.
-- PRINT of quoted strings and integer expressions, comma/semicolon separators, TAB, empty PRINT, and empty lines.
-- Numbered program insertion, replacement and deletion, LIST/DEL with inclusive line selectors, SCR, and sequential RUN with optional start line. RUN clears scalars; END stops execution, REM ignores its tail, and colon-separated statements execute in order. Runtime errors report the stopped line.
-- GOTO with computed target, IF with numeric conditions and a literal-line or statement consequent, nested IF, and conditional END. Taken branches skip later colon statements; false IF skips only its consequent. GOTO preserves scalars while RUN clears them.
-- Parentheses, unary signs, + / - / * / division / MOD, all numeric comparison spellings, AND / OR / NOT, ABS, and SGN.
-- Single-letter scalar variables A-Z, implied/LET assignment, default zero values, and CLR. Scalars occupy $4000-$4033 as explicit LE bytes.
-- Decimal output from 0 through 32767 and negative literals down to -32767, including zero and leading-zero normalization.
-- Literal-range and basic syntax diagnostics, followed by another usable prompt.
+The default application is a complete static MC6809 translation of the selected
+original interpreter's algorithms. `native/original-runtime/build.py` consumes
+the pinned ca65 disassembly/listing and generates `build/runtime-prototype.asm`;
+LWASM assembles that source into the released binary. No 6502 instruction decoder
+or CPU emulator runs on the CoCo. Source-address labels connect native routines
+to the original. Original verb dispatch is rebuilt with native addresses.
 
-The current native precedence parser evaluates source text rather than the original syntax-table token stream. The supported grammar is tokenized into compact native records with little-endian line numbers and numeric operands; LIST and RUN render those records back into source. Native token IDs and record layouts differ from Apple's. Multi-letter/dynamic variable storage, arrays, string variables, AUTO, and loop/subroutine control flow remain incomplete. Valid commands outside this milestone can currently produce SYNTAX errors. Passing the current projection is not evidence of full parser fidelity. Multiplication/division currently use bounded repeated arithmetic rather than optimized bit algorithms.
+Parsing, tokenization, expression evaluation, arithmetic, variable allocation,
+arrays, strings, editing/LIST/AUTO, program execution, FOR/NEXT, GOSUB/RETURN,
+conditional continuations, INPUT and error recovery execute in native code.
+The original syntax tables remain data. COLOR and PLOT retain this selected ROM's
+placeholder/check behavior; they do not add Apple II graphics.
 
-## Original-source correspondence
+The original numeric and token data layouts remain explicitly little-endian.
+Native instruction operands, addresses and native dispatch words use the 6809's
+normal conventions. The native A/B registers hold two original byte values; a
+private byte holds the other byte index. Helpers preserve carry conventions,
+byte wrapping, required flags and overlapping private workspace aliases.
 
-| Native path | Reference source | Current adaptation |
-| --- | --- | --- |
-| cold/new_cmd/clr_cmd | cold, mem_init_4k, new_cmd, clr | Private relocated storage and stack; original LE memory-pointer byte layout retained. CLR also clears the current scalar block. SCR clears program storage and scalars; CLR retains the program. |
-| warm/prompt | warm and Le2b6 | Successful statements enter warm and emit an extra CR; immediate errors enter prompt directly. |
-| rdkey/read_line | rdkey and Le280/read_line | CoCo KEYIN ABI, uppercase conversion, Apple editing characters and line buffer. |
-| cout/crout | cout/crout | CoCo CHROUT ABI; retain logical output before host wrapping and scrolling. |
-| parse_integer | literal recognition through put_token/decimal accumulation | Bounded decimal conversion and native numeric tokens with LE operands; original syntax-table architecture remains pending. |
-| parse_sum/parse_term/signed_math | add, subtract, mult_op, divide, mod_op | Native signed 16-bit arithmetic, overflow checks, and original XOR sign convention for quotient/remainder. |
-| parse_compare/parse_unary | eq_op, neq_op, comparison paths, negate, abs_fn, sgn_fn, not_op | Normalized 0/1 predicates, precedence and checked arithmetic. |
-| scalar assignment/load | var_assign and execute_var | Current A-Z scalar block uses LE byte storage; original variable-record allocation is pending. |
-| tokenize/render_tokens/edit_line | put_token, LIST and program editing | Native compact sorted records; replacement/deletion preserve neighboring records. LIST normalizes literals and keywords and reproduces continuation wrapping. |
-| command_run/execute_source | run_cmd and statement execution | Sequential execution, optional start line, colon splitting, END, REM, GOTO/IF, and stopped-line diagnostics; loop/subroutine stacks pending. |
-| prdec | prdec and decimal place tables | Native 16-bit register arithmetic with a decimal place scan and suppressed leading zeroes. |
-| parse_string/emit_literal | string literal and print_str paths | Bounded quoted-string span, validated before output; full string storage/subscript handling pending. |
-| report_error | print_err_msg and immediate recovery | Current SYNTAX and >32767 messages, preserved CR/prompt order. |
+The earlier handwritten implementation remains in `prompt.asm`, `expressions.asm`,
+`programs.asm`, `storage.asm`, `io.asm` and `memory.asm` for comparison. It is not
+linked into the default application. `make native-handwritten` and
+`node native/handwritten-runner.mjs` build/run that earlier backend. Its historical
+acceptance results must not be presented as evidence for the released binary.
 
-6809 registers and instruction addresses use their normal conventions. Existing original-layout workspace fields are explicit little-endian bytes. Native-only scratch words and pointers ending in `_be` use native word accesses; these are not aliases of the original interpreter's integer structures.
+## Memory and platform adaptations
 
-## Reusable acceptance pipeline
+| Region | Purpose |
+| --- | --- |
+| `$0800` through `t_code_end`, below `$4000` | Native interpreter, dispatch and helpers |
+| `$4000-$42FF` | Relocated original private byte workspace, control frames and input buffer |
+| `$4300-$4306` | Native helper state |
+| `$4C00-$4DFF` | Original grammar data |
+| `$5000-$57FF` | Initial 2 KiB variable/program arena |
+| `$5800-$6FFF` | Available expansion through HIMEM |
+| `$7E00-$7EFF` | Native hardware stack, initialized at `$7F00` |
 
-`runner.mjs` boots the actual CoCo ROMs, loads `build/prompt.bin`, and executes the shared MC6809 CPU. It supplies ASCII keys at KEYIN's ABI entry and observes the native cout routine before screen presentation. CHROUT still runs in the CoCo ROM. JavaScript performs no parsing, integer conversion, expression evaluation, or command execution.
+Variables grow up from LOMEM; programs grow down from HIMEM. Initial usable
+capacity matches the reference's 2 KiB arena. Memory commands accept native
+addresses in `$5000-$7000`, protecting the interpreter and hardware stack.
+Original allocator behavior remains, including ignored HIMEM decreases and the
+partially allocated descriptor left by a failed DIM. Tests check retained values,
+programs, live FOR frames, allocation errors and subsequent recovery.
 
-The runner accepts stdin and emits the complete logical console transcript on stdout. EOF completes only when the native program requests another key. Exhausting the native instruction budget returns status 2. This is deterministic console testing; asynchronous BREAK and keyboard timing are separate future contracts.
+PEEK/POKE use actual CoCo addresses. CALL runs native MC6809 instructions and
+preserves the interpreter's registers, DP and flags around the call. An Apple
+program containing 6502 machine code needs that code translated separately.
+
+Internal pointers have a separate memory policy: relocated private RAM and arena
+are writable, grammar data is read-only, and unbacked internal accesses read zero
+or ignore writes. This follows the original oracle's console-memory profile.
+Some accepted HIMEM/LOMEM/COLOR expressions underflow the noun stack; their
+invalid internal pointers must not accidentally access CoCo ROM or SAM/PIA.
+Those cases have explicit platform checks, separate from portable contracts.
+Arbitrary POKE into interpreter state remains capable of corrupting the program.
+
+Color BASIC KEYIN/CHROUT provide physical console I/O. Lowercase is uppercased;
+CoCo backspace byte 8 maps to the original underscore-delete key; CLEAR byte 12
+(Escape in the web keyboard) maps to Apple's Escape line cancellation. Logical output
+is observed before the CoCo's physical 32-column wrapping. Original TAB/LIST
+formatting therefore remains in the transcript, while the screen wraps sooner.
+Program execution polls at original record boundaries; NEXT/RETURN continuations
+retain their original polling behavior. A stopping key remains available at the
+prompt, with variables and control frames retained.
+
+## Verification
 
 ```sh
-make native-test           # Internal loader, scalar layout, and real ROM CLOADM/EXEC with keyboard PRINT
-make native-behavior-test  # 633 expression/scalar contracts + 126 stored-program/branch contracts
-make native-full-test      # Completion gate: currently 107 failures
+make verify-native  # Actual released binary: parser, language, layout, platform,
+                    # fast/physical/PCM cassette paths, and historical Blackjack
+make verify-oracle  # Unchanged ROM, CPU functional check, contracts, independent
+                    # py65 agreement, targeted faults and broad mutation sample
+python3 native/original-runtime/replay.py
 node native/runner.mjs < commands.bas
 ```
 
-The native milestone uses the same `behavior.jsonl`, explicit expectations, exact transcripts, and comparator as the original. `--feature` and `--case` select a milestone projection in compare mode; recording a filtered baseline is forbidden, empty selections fail, and filtered runs do not overwrite the whole-suite coverage report. Compare without filters to assess the whole interpreter; the current slice still fails cases for unimplemented features. `--report build/native-acceptance.json` writes per-case progress without updating expected results. Unknown selectors and attempts to overwrite frozen baselines with reports are rejected.
+The portable suite contains 931 frozen behavioral contracts. Each checks stated
+results/errors/recovery and the complete original transcript. The native runner
+only supplies the KEYIN ABI and observes CHROUT; it does not tokenize, evaluate,
+edit, allocate or execute BASIC on the host. Independent py65 agreement checks the
+original CPU oracle, with a deliberately shared console device policy.
 
-Additional `literal-console` cases were first checked and recorded against the unchanged original ROM. They exercise decimal-place and sign boundaries, strings/punctuation, literal errors and recovery, lowercase input, deletion/cancellation, and empty input/PRINT. They remain part of the common suite for later port stages.
+The routine-level parser matrix executes the parser from the released binary,
+comparing exact tokens or errors against the unchanged ROM on 1,558 source lines.
+The legacy diagnostic replay separately matches 1,300 selected snapshots,
+including deep expression/resource recovery. Its 266 explicit exclusions require
+platform-address or instruction-budget-specific comparisons. Legacy snapshots
+are supplementary observations, not a substitute for audited contracts.
 
-## Try it in the web emulator
+The physical cassette tests boot stock CoCo ROMs, load every segment with CLOADM,
+execute with EXEC, and exercise physical keys, backspace, programs, arrays,
+strings, loops/subroutines, asynchronous stop and retained values. Two slower
+paths disable every cassette ROM shortcut: CAS-generated FSK and the saved WAV's
+actual PCM samples, supplied through PIA input. The PCM path bypasses both the
+WAV-to-CAS decoder and CAS pulse generator. A small independent native payload
+also verifies each tape path through the CoCo ROM's timing/checksum routines.
 
-Build with `make native`. Boot the CoCo to `OK`, use Tape to select `ports/integer-basic/build/prompt.cas`, then enter:
+Historical Blackjack has two complete original/C/py65/native transcript checks
+and a separate cassette game session. See [demos](../demos/README.md).
 
-```basic
-CLOADM
-EXEC
-```
+Reports include `build/native-acceptance.md/json`,
+`build/native-original-parser.json`, `build/native-original-replay.json`, and
+`build/behavior-coverage.json`. Binary, ROM and frozen-suite fingerprints guard
+against stale or projected acceptance reports. Coverage and mutation detection
+measure test evidence; they do not establish universal equivalence.
 
-At the Integer BASIC prompt, try:
+## Remaining limits
 
-```basic
-PRINT "HELLO WORLD"
-PRINT 6*7
-A=256
-PRINT A/2
-PRINT 32768
-PRINT 7
-10 A=6*7
-20 PRINT A
-30 END
-LIST
-RUN
-SCR
-10 A=0
-20 A=A+1
-30 IF A<3 THEN 20
-40 PRINT A
-50 END
-RUN
-```
+The selected 4 KiB Replica 1 reference image remains byte-for-byte frozen; its
+provenance has not been authenticated against a particular surviving 1976 BASIC
+cassette. This port targets that exact image, not every Apple-1/Apple-II variant.
 
-The arithmetic produces 42 and 128; the final conditional-branch program prints 3. The range-error command demonstrates error handling, and the following PRINT demonstrates recovery. Reset returns to Color BASIC. The cassette test loads every assembled segment through Color BASIC's CLOADM routine, executes through EXEC, and types PRINT using the keyboard matrix. The emulator uses its existing cassette ROM shortcuts; physical tape timing and real hardware remain unverified. The DECB binary is retained for internal tests.
+PEEK/POKE/CALL addresses, usable memory bounds, screen width and keyboard hardware
+are CoCo adaptations. Instruction counts and real-time speed differ by CPU.
+Original Apple cassette-interface commands and machine-code games are not
+implemented. Some malformed accepted expressions depend on the oracle's unbacked
+memory policy and are documented/tested as platform quirks.
 
-Next substantial translation: loop/subroutine control flow, then dynamic variable/string/array records. Preserve the 759 gated contracts while enlarging the native acceptance projection. Full-suite progress is separate from the gated milestone; passing counts are not a percentage of interpreter fidelity.
-
-## Measured progress
-
-The latest full comparison passes **766/873** contracts and fails **107/873**. All 759 gated expression/scalar and stored-program/branch contracts pass. The full report is [native-acceptance.md](../build/native-acceptance.md), with per-case evidence in `build/native-acceptance.json`. These counts are not instruction coverage or a fidelity percentage. Loops/subroutines, dynamic variable storage, arrays, string variables, INPUT, AUTO, and RND remain incomplete. The original 873-case oracle still passes, and its two CPU implementations agree.
+The CoCo ROM's loading and execution paths are tested in this emulator, including
+actual PCM input with shortcuts disabled. An electrical playback test on a real
+CoCo and an independent emulator remains useful hardware validation; no physical
+machine test is claimed here. Use a normal CoCo cassette cable/audio source for
+WAV playback and adjust volume as appropriate for that hardware.

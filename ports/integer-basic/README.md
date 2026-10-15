@@ -1,8 +1,17 @@
 # Woz Integer BASIC for the CoCo
 
-Status: Apple-1 BASIC assembles byte-for-byte against the reference and runs in a local console emulator. The native 6809E slice now handles immediate integer expressions, quoted-string PRINT, and single-letter scalar assignment/CLR. Stored programs, arrays, and string variables remain unported.
+An original Apple-1 **Blackjack / 21** demo is available: see
+[historical demos and cassette loading instructions](demos/README.md).
+`make demos` builds `build/blackjack.cas` for Tape → `CLOADM` → `EXEC` → `RUN`.
 
-The intended deliverable is a native MC6809 application that can be loaded on a real CoCo with CLOADM/EXEC or LOADM/EXEC. The interpreter is being rewritten in native 6809E assembly.
+Status: Apple-1 BASIC assembles byte-for-byte against the reference. The native MC6809E cassette application implements the language, including stored programs, loops/subroutines, numeric arrays, strings, INPUT, and RNG. The audited suite now contains 931 behavioral contracts. Platform policies and remaining fidelity limits are documented in [native/PORTING.md](native/PORTING.md).
+
+A [complete native translation of the original algorithms](native/original-runtime/README.md)
+is now the default backend. Validation includes all 931 contracts, independent
+historical Blackjack comparisons, 1,558 parser token/error cases, 1,300 legacy
+snapshots, and physical `CLOADM`/`EXEC` checks. CAS and WAV audio are built together.
+
+The application contains native MC6809E instructions and uses stock CoCo console services. The CoCo ROM loader is tested with cassette shortcuts disabled, including input from the saved WAV samples. Electrical playback on a physical machine remains unverified.
 
 ## Reference candidate
 
@@ -84,13 +93,32 @@ You can run the existing reference without an assembler: `make build/apple1`, th
 
 `make test` checks reference assembly equality, the upstream 6502 functional test, and nine console scenarios including arithmetic, FOR/NEXT, GOSUB/RETURN, line replacement, errors, EOF, and runaway programs. Build products, listings, maps, and local assembler executables are ignored.
 
-## Native expressions, stored programs, and branches
+## Native cassette application
 
-Run `make native-test` to assemble and test `native/prompt.asm`. The resulting `build/prompt.cas` is a cassette image of the native MC6809E application, with execution entry at $3000. Boot the web emulator to OK, use Tape to select this image, then type `CLOADM` and, when loading finishes, `EXEC`. The DECB binary remains an internal build/test artifact. It evaluates commands such as `PRINT 6*7`, `A=256`, and `PRINT A/2`. Numbered programs support editing, LIST/DEL/SCR, RUN, END, REM, GOTO, and numeric IF/THEN. Loops, subroutines, and dynamic variable/string/array storage remain incomplete. See [native/PORTING.md](native/PORTING.md) for current source correspondence and limits. Reset returns to Color BASIC.
+Run `make verify-native` to assemble and test the complete port, including every audited behavioral contract and ROM cassette loading. Use the web emulator's Tape control to select `ports/integer-basic/build/prompt.cas`, then type:
 
-The source translates the initial cold/memory/NEW/CLR and prompt paths, uses Color BASIC keyboard/output vectors, and preserves original little-endian BASIC data layout through explicit byte construction. Native scalar/buffer/program storage occupies $4000-$6FFF, with stack at $7F00. The input buffer is bounded at 127 bytes.
+```basic
+CLOADM
+EXEC
+```
 
-`coco-machine.js` contains the shared browser/headless machine. Its `loadDECB` validates RAM records before loading, and `readTextScreen` exposes text-screen RAM without OCR. The native tests boot actual CoCo ROMs, load the cassette through CLOADM/EXEC, type `PRINT 6*7` through the keyboard matrix, and verify 42 plus a stored program with conditional backward branching. Native layout checks verify scalar LE storage. `make native-behavior-test` checks 759 shared oracle cases against the actual binary via the logical-console runner. Browser interactions and real hardware have not been separately tested.
+At the `>` prompt, try:
+
+```basic
+10 DIM A(3),B$(10)
+20 B$="HELLO"
+30 FOR I=1 TO 3
+40 A(I)=I*7:GOSUB 100
+50 NEXT I
+60 END
+100 PRINT B$;A(I):RETURN
+LIST
+RUN
+```
+
+This prints HELLO7, HELLO14, and HELLO21. Reset returns to Color BASIC. The entry point is $0800; at least 32K RAM is required. The DECB binary is retained for internal tests. [native/PORTING.md](native/PORTING.md) describes the memory map, source correspondence, platform adaptations, and remaining limits.
+
+`native/runner.mjs` boots actual CoCo ROMs and executes the loaded 6809 assembly. It captures logical console output before screen wrapping and scrolling; JavaScript does not execute BASIC semantics. `make native-behavior-test` compares the entire frozen original suite, with per-case results in `build/native-acceptance.json` and a generated readable `build/native-acceptance.md`. The cassette test separately loads through Color BASIC CLOADM/EXEC and types programs through the keyboard matrix. Layout and platform tests check little-endian values, reserved boundaries, native CALL, memory relocation, allocation reuse/failure recovery, and retained program state. A browser cassette run also verified the example above, including reloading the same cassette filename. Real hardware and physical tape audio remain unverified.
 
 LWASM is built locally in ignored `.tools/`. Recreate it using https://github.com/stahta01/LWTools at commit `a00d389d0a1e47ea54834649d7cc86d17046b4af`, build with `make -j4 lwasm`, and pass its executable path as `make LWASM=/path/to/lwasm native-test`.
 
@@ -115,7 +143,7 @@ To compare a future native runner:
 python3 oracle/golden.py compare --runner 'path/to/native-transcript-runner'
 ```
 
-Runner contract: fresh machine per invocation, BASIC commands on stdin, a console transcript on stdout including input echo and prompts, status 0 at the next input wait after EOF, status 2 for a bounded runaway. Keep diagnostics on stderr. The future CoCo runner must capture logical output rather than screen wrapping/scrolling; the partial native milestone cannot pass full-language tests yet. Hardware-specific PEEK/POKE/CALL and random/time behavior will need explicit equivalence rules rather than silently accepting mismatches.
+Runner contract: fresh machine per invocation, BASIC commands on stdin, a console transcript on stdout including input echo and prompts, status 0 at the next input wait after EOF, status 2 for a bounded runaway. Keep diagnostics on stderr. The native CoCo runner captures logical output rather than screen wrapping/scrolling and passes the entire audited behavioral suite. Hardware-specific PEEK/POKE/CALL and random/time behavior will need explicit equivalence rules rather than silently accepting mismatches.
 
 Expected output collection is observation, not independent validation: a bug in our 6502 emulator can otherwise become a golden result. Keep the upstream CPU test and curated numeric smoke expectations, and cross-check representative transcripts in a separate Apple-1 emulator before declaring the whole corpus authoritative. Expand tests toward uncovered routines and branch outcomes instead of relying on case count alone.
 
@@ -123,12 +151,12 @@ See [the coverage audit](oracle/COVERAGE.md) for current coverage, remaining add
 
 ## Audited behavioral acceptance
 
-Use `make test` for the current acceptance checks, or `make behavior-test` for the 873 portable language contracts. These combine specified results/errors/recovery with complete frozen transcripts. They exercise 93.46% of instruction entries and 81.74% of conditional-branch outcomes, and reject 21 selected behavioral ROM mutations. The earlier 99.16% exploratory score is a separate execution metric.
+Use `make test` for the current acceptance checks, or `make behavior-test` for the 931 portable language contracts. These combine specified results/errors/recovery with complete frozen transcripts. They exercise 95.15% of instruction entries and 84.70% of conditional-branch outcomes, and reject 23 selected behavioral ROM mutations. The earlier 99.16% exploratory score is a separate execution metric.
 
 [TEST-AUDIT.md](oracle/TEST-AUDIT.md) documents corrected weak cases, the portable runner contract, mutation evidence, and remaining validation gaps. `build/behavior-coverage.json` links executed addresses to passing case ids; `build/exploratory-audit.json` classifies legacy observations. These scores measure evidence, not proof of complete equivalence.
 
 Compare a native logical-console runner with `python3 oracle/behavior.py compare --runner 'path/to/runner'`. Do not substitute final screen text for the entire output transcript.
 
-All 873 acceptance transcripts also match an independent NMOS 6502 core, [py65](https://github.com/mnaberez/py65), version 1.2.0 (BSD-3-Clause). Install its pinned dependency locally with `python3 -m pip install --target .tools/python -r oracle/requirements-crosscheck.txt`, then run `make oracle-crosscheck`, or `make verify-oracle` for the complete current validation. The device policy is shared, so this checks CPU-dependent observations without authenticating the historical image or physical hardware behavior. `build/mutation-report.json` contains the test-by-fault matrix; `build/behavior-coverage.json` contains instruction and branch witnesses.
+All 931 acceptance transcripts also match an independent NMOS 6502 core, [py65](https://github.com/mnaberez/py65), version 1.2.0 (BSD-3-Clause). Install its pinned dependency locally with `python3 -m pip install --target .tools/python -r oracle/requirements-crosscheck.txt`, then run `make oracle-crosscheck`, or `make verify-oracle` for the complete current validation. The device policy is shared, so this checks CPU-dependent observations without authenticating the historical image or physical hardware behavior. `build/mutation-report.json` contains the test-by-fault matrix; `build/behavior-coverage.json` contains instruction and branch witnesses.
 
 `make oracle-gap` applies the [oracle-gap paper](https://arxiv.org/pdf/2309.02395) using a repeatable sample of branch and immediate-operand mutations, with raw and covered scores per ROM region. See [ORACLE-GAP.md](oracle/ORACLE-GAP.md) for methodology and limitations, and `build/oracle-gap.md` for the readable generated report. The broad sample is separate from the selected regression-fault checks.

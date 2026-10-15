@@ -1,3 +1,4 @@
+import { registerCarryALUTests } from './carry-alu-cases.js';
 // Node.js test runner — runs the same tests without a browser
 import { MC6809 } from '../cpu.js';
 import { Debugger } from '../debug.js';
@@ -1133,21 +1134,15 @@ test('CAS to WAV produces valid WAV', () => {
 
 test('WAV round-trip preserves data bytes', () => {
     // Build a simple CAS, encode to WAV, decode back
-    const original = new Uint8Array([0x55, 0x55, 0x55, 0x3C, 0x01, 0x03, 0xAA, 0xBB, 0xCC]);
+    const original = Uint8Array.from({length:256},(_,i)=>i);
     const wav = casToWAV(original);
     const decoded = wavToCAS(wav);
-    // The decoded data should contain our original bytes (possibly with some sync jitter)
-    // Check that the sync byte and data are present
-    let found3C = false;
-    for (let i = 0; i < decoded.length; i++) {
-        if (decoded[i] === 0x3C) { found3C = true; break; }
-    }
-    isTrue(found3C, 'sync byte found in decoded WAV');
+    eq(Array.from(decoded).join(','),Array.from(original).join(','),'all byte values survive exactly');
 });
 
 test('Cassette readBit returns FSK signal level', () => {
     const c = new Cassette();
-    c.loadCAS(new Uint8Array([0x55]).buffer); // 01010101
+    c.loadCAS(new Uint8Array([0x02]).buffer); // LSB first: 0,1,0,0,0,0,0,0
     // Motor must be on for signal to advance
     c.setMotor(true);
     // Initially signal is low
@@ -1157,16 +1152,22 @@ test('Cassette readBit returns FSK signal level', () => {
     eq(c.readBit(), 1, 'after first half-period');
     c.advanceCycles(373);
     eq(c.readBit(), 0, 'after full period');
+    c.advanceCycles(186);
+    eq(c.readBit(), 1, 'next bit is one short cycle');
+    c.advanceCycles(186);
+    eq(c.readBit(), 0, 'one bit has exactly two halves');
 });
 
 test('Cassette writeBit accumulates bytes', () => {
     const c = new Cassette();
     c.startRecording();
-    // Write 10100101 = $A5
-    [1,0,1,0,0,1,0,1].forEach(b => c.writeBit(b));
+    // $96, sent least-significant bit first. Unlike $A5 it is not bit-palindromic.
+    [0,1,1,0,1,0,0,1].forEach(b => c.writeBit(b));
     const data = c.stopRecording();
     eq(data.length, 1, 'one byte');
-    eq(data[0], 0xA5, 'byte value');
+    eq(data[0], 0x96, 'byte value');
 });
+
+registerCarryALUTests({suite,test,eq,makeCPU});
 
 summary();

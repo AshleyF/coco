@@ -1,0 +1,4 @@
+[
+  {"id":"conditional-immediate-gosub-return","input":"10 PRINT 7:RETURN\nIF 1 THEN GOSUB 10\nPRINT 17\n"},
+  {"id":"conditional-immediate-for-next","input":"IF 1 THEN FOR I=1 TO 2\nIF 1 THEN NEXT I\nPRINT 17\n"}
+]

@@ -6,6 +6,178 @@ identified explicitly; frozen observations alone are not independent validation.
 
 
 def extended_cases(case):
+    yield case('color-placeholder-byte-checks-and-listing', 'memory',
+               'A=23\nCOLOR=0\nCOLOR=255\nCOLOR=256\nCOLOR=-1\nCOLOR="X"\n'
+               'PRINT A\n10 COLOR=7\n20 PRINT 17\n30 END\nLIST\nRUN\n',
+               [23,17], ['>255','>255','SYNTAX'], contains=['   10 COLOR=7\n'])
+    for name,opening in [('parentheses','('),('functions','ABS(')]:
+        valid=opening*13+'1'+')'*13
+        invalid=opening*14+'1'+')'*14
+        yield case(f'parser-stack-boundary-{name}', 'tokenizer',
+                   f'A=17\nPRINT {valid}\nPRINT {invalid}\nPRINT A\n',
+                   [1,17], ['TOO LONG'])
+    yield case('parser-flat-expression-boundary-and-state', 'tokenizer',
+               'A=17\nPRINT '+'+'.join(['1']*41)+'\nPRINT '+'+'.join(['1']*42)+'\nPRINT A\n',
+               [41,17], ['TOO LONG'])
+    yield case('parser-overflow-preserves-replaced-program', 'tokenizer',
+               '10 PRINT 17\n20 END\n10 PRINT '+'('*20+'1'+')'*20+'\nLIST\nRUN\n',
+               [17], ['TOO LONG'], contains=['   10 PRINT 17\n'])
+    yield case('parser-overflow-before-output', 'tokenizer',
+               'A=17\nPRINT "HEAD";'+'('*20+'1'+')'*20+'\nPRINT A\n',
+               [17], ['TOO LONG'], absent=['\nHEAD'])
+    key_event = {'after':'\n1\n','key':ord('P')}
+    yield case('keyboard-stop-preserves-scalar-and-key', 'keyboard-events',
+               '10 A=0\n20 A=A+1:PRINT A\n30 GOTO 20\nRUN\nRINT A\nPRINT 17\n',
+               [1,1,17], contains=['STOPPED AT 30\n>PRINT A\n'],event=key_event)
+    yield case('keyboard-stop-retains-for-frame', 'keyboard-events',
+               '10 FOR I=1 TO 2\n20 PRINT I\n30 NEXT I\n40 END\n'
+               'RUN\nRINT I\nGOTO 30\nPRINT I\n',
+               [1,1,2,3], contains=['STOPPED AT 30'],event=key_event)
+    yield case('keyboard-stop-after-same-line-next-resumes', 'keyboard-events',
+               '10 FOR I=1 TO 3:PRINT I:NEXT I\n20 END\nRUN\nRINT I\n',
+               [1,2,3,4], contains=['STOPPED AT 20'],event=key_event)
+    yield case('keyboard-stop-retains-gosub-frame', 'keyboard-events',
+               '10 GOSUB 100\n20 PRINT 2:END\n100 PRINT 1\n110 RETURN\n'
+               'RUN\nRINT 17\nGOTO 110\n',
+               [1,17,2], contains=['STOPPED AT 110'],event=key_event)
+    yield case('keyboard-stop-after-return-cursor-resumes', 'keyboard-events',
+               '10 GOSUB 100:PRINT 2\n20 END\n100 PRINT 1:RETURN\nRUN\nRINT 17\n',
+               [1,2,17], contains=['STOPPED AT 20'],event=key_event)
+    yield case('keyboard-stop-before-first-line-after-run-clear', 'keyboard-events',
+               '10 A=99\n20 END\nA=17\nRUN\nRINT A\n', [0],
+               contains=['STOPPED AT 10'],event={'after':'>RUN\n','key':ord('P')})
+    yield case('auto-overflow-cancel-and-recovery', 'editing',
+               'AUTO 32767,1\nPRINT 3\n\x04\nLIST\nPRINT 17\n',
+               [17], ['>32767'], contains=['\n32767 PRINT 3\n'])
+    yield case('auto-invalid-entry-retains-number', 'editing',
+               'AUTO 10\nBOGUS\nPRINT 1\n\x04\nLIST\n', errors=['SYNTAX'],
+               contains=['   10 PRINT 1\n'], absent=['   20 PRINT 1\n'])
+    yield case('list-functions-array-token-boundary', 'editing',
+               '10 DIM A$(20),B$(20),C(5)\n'
+               '20 IF A$#B$ THEN PRINT ABS(C(1)),RND(10)\n'
+               '30 INPUT "VALUE",A$,C(1)\n40 END\nLIST\n',
+               contains=['   20 IF A$#B$ THEN PRINT ABS (C(\n      1)), RND (10)\n'])
+    for name,expression,value,listing in [
+            ('abs','1+ABS(-2)',3,'1+ ABS (-2)'),
+            ('sgn','SGN(-7)',-1,'SGN (-7)'),
+            ('rnd','RND(10)',6,'RND (10)'),
+            ('len','LEN(A$)',2,'LEN(A$)')]:
+        yield case(f'list-function-execute-{name}', 'editing',
+                   f'10 DIM A$(5)\n20 A$="HI"\n30 PRINT {expression}\n40 END\nLIST\nRUN\n',
+                   [value], contains=[f'   30 PRINT {listing}\n'])
+    for name,data,numbers,error in [
+            ('surplus','1,2,3\n',[1,2],False),
+            ('separate-lines','1\n2\n',[1,2],False),
+            ('blank-retry','\n1,2\n',[1,2],True),
+            ('trailing-comma-retry','1,\n2,3\n',[2,3],True),
+            ('signed-spaces','+1, -2\n',[1,-2],False),
+            ('split-digits','1 2,3\n',[12,3],False),
+            ('suffix-retry','1,2X\n3,4\n',[3,4],True),
+            ('fraction-retry','1.0,2\n3,4\n',[3,4],True)]:
+        yield case(f'input-list-partition-{name}', 'input',
+                   '10 INPUT A,B\n20 PRINT A\n30 PRINT B\n40 END\nRUN\n'+data,
+                   numbers,['SYNTAX'] if error else [],
+                   contains=['RETYPE LINE'] if error else [])
+    # Independent bit recurrence for this fingerprinted image, rather than
+    # deriving expectations from emulator RAM or freezing unanchored numbers.
+    for bound in [1,2,255,256,32767,0,-2,-32767]:
+        low = high = 0
+        numbers = []
+        errors = []
+        bounds = [bound]*6 + [10,10]
+        for divisor in bounds:
+            if high == low == 0:
+                high = 1
+            high &= 127
+            old = 256*high + low
+            for _ in range(17):
+                feedback = (((high*2)&255)+64)&255
+                high,low = ((high*2)|(low>>7))&255, ((low*2)|(feedback>>7))&255
+            if divisor == 0:
+                errors.append('>32767')
+            else:
+                numbers.append((old % abs(divisor))*(-1 if divisor < 0 else 1))
+        yield case(f'random-bound-state-{bound}', 'random',
+                   f'PRINT RND({bound})\n'*6 + 'CLR\nPRINT RND(10)\nSCR\nPRINT RND(10)\n',
+                   numbers,errors)
+    yield case('string-name-spacing-and-numeric-suffix-rejection', 'errors',
+               'DIM B $(5)\nB $="HI"\nPRINT B $\nPRINT LEN(B $)\n'
+               'PRINT B $=B$\nDIM A1$(5)\nA1$="X"\nPRINT A1$\nPRINT B$\n',
+               [2], ['SYNTAX']*4, contains=['\nHI\n'])
+    yield case('dimension-word-size-overflow-preserves-storage', 'errors',
+               'A=17\nDIM B(16384)\nDIM B(32767)\nPRINT A\n'
+               'DIM C(2)\nC(2)=9\nPRINT C(2)\n', [17,9], ['RANGE','RANGE'])
+    yield case('string-unary-and-boolean-type-errors', 'errors',
+               'A=17\nDIM B$(5)\nB$="HI"\nPRINT +B$\nPRINT NOT B$\n'
+               'PRINT B$ AND 1\nPRINT 1 OR B$\nPRINT A\n', [17], ['SYNTAX']*4)
+    yield case('for-array-resize-repairs-active-variable', 'control',
+               '10 DIM I(2)\n20 FOR I=1 TO 2\n30 DIM I(3)\n40 PRINT I\n'
+               '50 NEXT I\n60 END\nRUN\nPRINT I\n', [1,2,3])
+    yield case('input-literal-overflow-retry', 'input',
+               '10 INPUT A\n20 PRINT A\n30 END\nRUN\n32768\n7\n',
+               [7], ['>32767'], contains=['RETYPE LINE'])
+    yield case('plot-placeholder-coordinate-boundaries', 'memory',
+               'PLOT 255,1\nPLOT 1,47\nPLOT 256,1\nPLOT 1,48\nPRINT 17\n',
+               [17], ['>255','RANGE'])
+    yield case('syntax-preflight-no-output-or-allocation', 'errors',
+               'A=7\nB=(\nDIM A(2)\nPRINT A(1)\nPRINT "HEAD";(\n'
+               'DIM C(2),BOGUS\nDIM C(3)\nC(3)=9\nPRINT C(3)\n',
+               [7,9], ['SYNTAX']*3, absent=['\nHEAD'])
+    yield case('spaces-in-tokens-preserve-literal-spaces', 'editing',
+               'P R I N T 1\nA 1=7\nPRINT A1\nPRINT 1 2\nPRINT "A B"\n'
+               '10 P R I N T 7\n20 END\nLIST\nRUN\n', [1,7,12,7],
+               contains=['\nA B\n','   10 PRINT 7\n'])
+    yield case('conditional-prompt-for-initialization', 'control',
+               'IF 0 THEN FOR I=1 TO 2\nIF 1 THEN FOR I=1 TO 2\nPRINT I\n', [1])
+    yield case('string-byte-index-and-dimension-boundaries', 'errors',
+               'DIM A$(0)\nDIM A$(256)\nDIM A$(5)\nA$="ABC"\n'
+               'PRINT A$(256)\nPRINT A$(-1)\nPRINT A$\n',
+               errors=['STRING','>255','>255','>255'], contains=['\nABC\n'])
+    yield case('gosub-colon-return-cursor', 'control',
+               '10 GOSUB 100:PRINT 2:END\n100 PRINT 1:RETURN:PRINT 99\nRUN\n', [1,2])
+    yield case('gosub-loop-and-colon-cursors', 'control',
+               '10 FOR I=1 TO 2:GOSUB 100:PRINT I:NEXT I:END\n'
+               '100 FOR J=1 TO 2:PRINT I*10+J:NEXT J:RETURN\nRUN\n', [11,12,1,21,22,2])
+    yield case('next-comma-order-and-cursors', 'control',
+               '10 FOR I=1 TO 2:FOR J=1 TO 2:PRINT I*10+J:NEXT J,I:END\n'
+               'RUN\nPRINT I\nPRINT J\n', [11,12,21,22,3,3])
+    yield case('scalar-digit-name-boundaries-and-clr', 'variables',
+               'A=17\nA0=7\nA9=9\nZ9=256\nPRINT A\nPRINT A0\nPRINT A9\nPRINT Z9\n'
+               'A01=99\nAB=99\nPRINT A0\nCLR\nPRINT Z9\n', [17,7,9,256,7,0], ['SYNTAX','SYNTAX'])
+    yield case('array-default-alias-and-last-dimension-growth', 'arrays',
+               'A=7\nPRINT A(1)\nA(1)=9\nPRINT A\nDIM A(2)\n'
+               'A(2)=23\nPRINT A(1)\nPRINT A(2)\n', [7,9,9,23])
+    yield case('dimension-last-resize-and-earlier-rejection', 'errors',
+               'DIM A(2),B(2)\nA(1)=7\nB(2)=9\nDIM A(3)\nPRINT A(1)\n'
+               'DIM B(1)\nDIM B(2)\nPRINT B(2)\nDIM B(3)\nPRINT B(3)\n',
+               [7,9,0], ['DIM'])
+    yield case('string-overlap-original-copy-order', 'strings',
+               'DIM A$(10)\nA$="ABCDE"\nA$=A$(2)\nPRINT A$\n'
+               'A$(2)=A$\nPRINT A$\nPRINT LEN(A$)\n', [5],
+               contains=['\nBCDE\n','\nBBBBB\n'])
+    yield case('string-shrink-overflow-preserves-tail', 'errors',
+               'DIM A$(4)\nA$="ABCD"\nDIM A$(2)\nA$="XYZ"\n'
+               'PRINT A$\nPRINT LEN(A$)\nDIM A$(5)\nPRINT A$\n', [4],
+               ['STR OVFL'], contains=['\nXYCD\n'])
+    yield case('string-append-and-assignment-index-boundaries', 'errors',
+               'DIM A$(10)\nA$="AB"\nA$(3)="X"\nPRINT A$\n'
+               'A$(5)="Y"\nA$(2,3)="W"\nPRINT A$\nPRINT LEN(A$)\n', [3],
+               ['STRING','SYNTAX'], contains=['\nABX\n'])
+    yield case('string-type-errors-preserve-scalars', 'errors',
+               'A=17\nDIM B$(5)\nB$="HI"\nA=B$\nPRINT A\n'
+               'PRINT 1+B$\nIF B$<"ZZ" THEN PRINT 99\nPRINT B$=B$\n'
+               'PRINT ABS(B$)\nPRINT A\n', [17,17], ['SYNTAX']*5)
+    yield case('input-retry-whole-numeric-list', 'input',
+               '10 INPUT A,B\n20 PRINT A\n30 PRINT B\n40 END\nRUN\n7,X\n8,9\n',
+               [8,9], ['SYNTAX'], contains=['RETYPE LINE'])
+    yield case('input-rejects-expression-and-recovers', 'input',
+               '10 INPUT A\n20 PRINT A\n30 END\nRUN\n1+2\n7\n',
+               [7], ['SYNTAX'], contains=['RETYPE LINE'])
+    # A declared scratch RAM byte range, not an Apple hardware/workspace address.
+    yield case('memory-byte-values-and-error-state', 'memory',
+               'POKE 768,0\nPRINT PEEK(768)\nPOKE 768,255\nPRINT PEEK(768)\n'
+               'POKE 768,256\nPRINT PEEK(768)\nPOKE 768,-1\n'
+               'PRINT PEEK(768)\nPRINT 17\n', [0,255,255,255,17], ['>255','>255'])
     yield case('branch-if-end-and-empty-consequent', 'errors',
                'IF 1 THEN END\n10 IF 0 THEN END:PRINT 7:END\nRUN\n'
                '10 IF 0 THEN END:END\nRUN\nIF 0 THEN\nPRINT 17\n',

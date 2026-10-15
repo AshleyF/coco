@@ -13,6 +13,8 @@ for case in rows[1:]:
         issues.append('platform-or-memory-map-dependent; define native capability before comparing')
     if case['status']==2:
         issues.append('instruction-budget-dependent; not a portable timeout contract')
+    if 'TOO LONG' in errors:
+        issues.append('original parser/token-buffer resource limit; requires an explicit native capacity profile')
     if 'SYNTAX' in errors:
         issues.append('contains syntax errors; does not alone validate the feature named by its id')
     if case['id'].startswith('skipped-print-stack-'):

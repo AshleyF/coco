@@ -25,3 +25,9 @@ Validation: `node tests/cpu.test.node.js` — 183/183 pass. Initially 181/182 pa
 - Browser and Node tests are separate copies and can drift. Prefer shared cases with small environment adapters when extending conformance coverage.
 
 CPU interrupt behavior should be checked against the Motorola programming manual linked in README and independent 6809 vectors before using this emulator as the sole judge of the native port.
+
+## Carry arithmetic correction — 2026-10-14
+
+The native Integer BASIC translation exposed incorrect ADC/SBC condition codes at byte boundaries. `_adc8` and `_sbc8` previously folded carry/borrow into the operand before computing flags. The helpers now keep the original operand for overflow/half-carry and include carry/borrow separately in the result. An independent signed-range/nibble-sum check exhausts all 256 × 256 × 2 combinations for ADCA, ADCB, SBCA, and SBCB (524,288 instruction executions). Before the fix all four exhaustive checks failed; afterward the Node suite passes 187/187. The shared cases are also included in the browser CPU suite.
+
+Reference: Motorola M6809PM Appendix A, [ADC and SBC](https://www.maddes.net/m6809pm/appendix_a.htm). SBC half-carry is undefined and is not asserted. This correction does not resolve the separate interrupt/PIA/mapping findings above.

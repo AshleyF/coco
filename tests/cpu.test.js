@@ -1,3 +1,4 @@
+import { registerCarryALUTests } from './carry-alu-cases.js';
 // cpu.test.js — Comprehensive MC6809E CPU tests
 import { MC6809 } from '../cpu.js';
 import { Debugger } from '../debug.js';
@@ -1392,4 +1393,6 @@ test('Trace log', () => {
 // ===================================================================
 // Done!
 // ===================================================================
+registerCarryALUTests({suite,test,eq,makeCPU});
+
 summary();

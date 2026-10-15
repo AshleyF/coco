@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { buildCAS, buildHeader } from '../../../cassette.js';
+import { buildCAS, buildHeader, casToWAV } from '../../../cassette.js';
 
 // DECB records can be discontiguous; CLOADM loads one contiguous tape file.
 // Fill only the gap between the program's RAM segments with zeroes.
@@ -43,5 +43,6 @@ export function cassetteImage(binary) {
 }
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-    writeFileSync(process.argv[3], cassetteImage(readFileSync(process.argv[2])));
+    const cas=cassetteImage(readFileSync(process.argv[2]));
+    writeFileSync(process.argv[3],process.argv[3].endsWith('.wav')?new Uint8Array(casToWAV(cas)):cas);
 }

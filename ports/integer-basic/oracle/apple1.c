@@ -14,6 +14,11 @@ static unsigned long budget = 100000000;
 static unsigned long hits[4096], reads[4096];
 static unsigned long branches[4096][2]; /* not taken, taken */
 static const char *coverage_path;
+static const char *key_after_output;
+static char key_tail[256];
+static size_t key_tail_length, key_anchor_length;
+static unsigned int event_key;
+static int key_ready, key_delivered;
 
 static void save_coverage(void) {
     unsigned int i;
@@ -39,6 +44,10 @@ static void save_coverage(void) {
 
 uint8_t r8(struct cpu *cpu, uint16_t address) {
     if (address == 0xd011) {
+        if (key_ready && !key_delivered && !pending) {
+            pending = (uint8_t)(event_key | 0x80);
+            key_delivered = 1;
+        }
         if (!pending && cpu->pc == 0xe006) {
             int key = getchar();
             if (key == EOF) {
@@ -66,6 +75,16 @@ uint8_t w8(struct cpu *cpu, uint16_t address, uint8_t value) {
     if (address == 0xd012) {
         int ch = value & 0x7f;
         if (ch == '\r') ch = '\n';
+        if (key_after_output && !key_ready) {
+            if (key_tail_length == key_anchor_length) {
+                memmove(key_tail, key_tail + 1, key_anchor_length - 1);
+                key_tail_length--;
+            }
+            key_tail[key_tail_length++] = (char)ch;
+            if (key_tail_length == key_anchor_length &&
+                    memcmp(key_tail, key_after_output, key_anchor_length) == 0)
+                key_ready = 1;
+        }
         if (putchar(ch) == EOF || fflush(stdout) == EOF) {
             perror("stdout"); exit(1);
         }
@@ -88,6 +107,21 @@ int main(int argc, char **argv) {
         char *end;
         budget = strtoul(argv[2], &end, 10);
         if (!budget || *end) { fprintf(stderr, "invalid budget\n"); return 1; }
+    }
+    key_after_output = getenv("BASIC_KEY_AFTER_OUTPUT");
+    const char *key_text = getenv("BASIC_KEY_BYTE");
+    if (key_after_output || key_text) {
+        char *end;
+        if (!key_after_output || !key_text || !(key_anchor_length = strlen(key_after_output)) ||
+                key_anchor_length >= sizeof(key_tail)) {
+            fprintf(stderr, "key event requires a nonempty output anchor below 256 bytes and an ASCII key\n");
+            return 1;
+        }
+        event_key = (unsigned int)strtoul(key_text, &end, 10);
+        if (*end || !event_key || event_key > 127) {
+            fprintf(stderr, "event key must be ASCII 1..127\n");
+            return 1;
+        }
     }
     rom = fopen(argv[1], "rb");
     if (!rom) { perror(argv[1]); return 1; }
