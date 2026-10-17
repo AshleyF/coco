@@ -37,6 +37,29 @@ Open `http://localhost:3000`. The emulator auto-loads Color BASIC 1.3 + Extended
 | Restore keyboard arrows/Space | Select CoCo keyboard |
 | Paste text | Ctrl + V |
 
+## Software library
+
+The main page opens with the keyboard expanded. Below it, the software library
+can start the bundled Color Forth cartridge or mount an Integer BASIC/game
+tape directly from the site. BASIC and its games now use a native **40×24
+graphics terminal** after EXEC; see [display implementation and verification](ports/integer-basic/native/GRAPHICS.md). Tape mounting leaves command entry to you:
+
+- **Integer BASIC:** from Color BASIC, type `CLOADM`, then `EXEC`.
+- **Blackjack program:** already in Integer BASIC, type `LOAD "BLACKJAK"`, then `RUN`.
+- **Star Trek program:** in Integer BASIC, enter `HIMEM=27904`, then `LOAD "STARTREK"`, then `RUN`. See [game commands and historical sources](ports/integer-basic/demos/STAR-TREK.md).
+
+Blackjack's first shuffle pauses at “I SHOW” for about 17 seconds at normal
+speed; the dealer turn can take about 19 seconds. See the
+[performance measurements](ports/integer-basic/native/PERFORMANCE.md).
+
+Load Integer BASIC first, then mount a separate game program tape. Wait for `OK`
+after `CLOADM` and `LOADED` after `LOAD` before entering the next command.
+
+The three website tapes live in `software/`, so static hosting does not require
+ignored build files. After changing the native port, run
+`make -C ports/integer-basic web-software` to regenerate them. See
+[software packaging](software/README.md).
+
 ## Cartridges & Tapes
 
 Download CoCo software from the [Color Computer Archive](https://colorcomputerarchive.com/):

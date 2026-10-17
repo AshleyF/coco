@@ -1,0 +1,383 @@
+{
+  "native_sha256": "74ad5ff039d62104dfac2be66bca93faf7df49a479805406e37a40e1c22e4c5a",
+  "reference_rom_sha256": "5d8a3fe3c20c42903b226d67430c840ea5119557f88774c069e2e4dd80ad2c67",
+  "scope": "Target cycles; logical KEYIN supplied, actual CHROUT. Excludes human input waits and ROM keyboard scanning; physical timing is measured separately.",
+  "engine_bytes": 13529,
+  "cases": [
+    {
+      "id": "counting-loop",
+      "input_sha256": "957b8a25acb7382e5eb77feea5b4c1178b65c58f75c1b39e0cd047fc6cfba839",
+      "cycles": 6616099,
+      "steps": 1321737,
+      "seconds_at_894886_hz": 7.393231093122476,
+      "carry_helper_cycles": 405048,
+      "internal_memory_helper_cycles": 911175,
+      "stack_instruction_cycles": 2160534,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e71b",
+          "cycles": 231220
+        },
+        {
+          "address": "$e71f",
+          "cycles": 231220
+        },
+        {
+          "address": "$e708",
+          "cycles": 201134
+        },
+        {
+          "address": "$e717",
+          "cycles": 197588
+        },
+        {
+          "address": "$e684",
+          "cycles": 192880
+        },
+        {
+          "address": "$e70d",
+          "cycles": 144160
+        },
+        {
+          "address": "$e705",
+          "cycles": 97120
+        },
+        {
+          "address": "$e725",
+          "cycles": 96080
+        },
+        {
+          "address": "$e729",
+          "cycles": 96080
+        },
+        {
+          "address": "$e6da",
+          "cycles": 90700
+        }
+      ]
+    },
+    {
+      "id": "integer-arithmetic",
+      "input_sha256": "78c13e788f554b40ffe00c66789a5f32103d2971ea21fa3fb0db181c5170ec8e",
+      "cycles": 5855031,
+      "steps": 1150178,
+      "seconds_at_894886_hz": 6.542767458648364,
+      "carry_helper_cycles": 695604,
+      "internal_memory_helper_cycles": 980349,
+      "stack_instruction_cycles": 1703374,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e705",
+          "cycles": 185520
+        },
+        {
+          "address": "$e40c",
+          "cycles": 171288
+        },
+        {
+          "address": "$e684",
+          "cycles": 137120
+        },
+        {
+          "address": "$e6da",
+          "cycles": 110850
+        },
+        {
+          "address": "$e45c",
+          "cycles": 97840
+        },
+        {
+          "address": "$e71b",
+          "cycles": 88275
+        },
+        {
+          "address": "$e71f",
+          "cycles": 88275
+        },
+        {
+          "address": "$e708",
+          "cycles": 80601
+        },
+        {
+          "address": "$e717",
+          "cycles": 75435
+        },
+        {
+          "address": "$ee88",
+          "cycles": 67200
+        }
+      ]
+    },
+    {
+      "id": "arrays",
+      "input_sha256": "0d8b729ef372c5a43daab5d1b4b3b130b2675387b822deb59e9b68d2c59fa7e0",
+      "cycles": 4271074,
+      "steps": 859822,
+      "seconds_at_894886_hz": 4.77275764734279,
+      "carry_helper_cycles": 420504,
+      "internal_memory_helper_cycles": 1002284,
+      "stack_instruction_cycles": 1172753,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e40c",
+          "cycles": 369408
+        },
+        {
+          "address": "$e45c",
+          "cycles": 157600
+        },
+        {
+          "address": "$e49e",
+          "cycles": 75520
+        },
+        {
+          "address": "$e42b",
+          "cycles": 67144
+        },
+        {
+          "address": "$e430",
+          "cycles": 57280
+        },
+        {
+          "address": "$e705",
+          "cycles": 56720
+        },
+        {
+          "address": "$e684",
+          "cycles": 55680
+        },
+        {
+          "address": "$e44b",
+          "cycles": 52720
+        },
+        {
+          "address": "$e638",
+          "cycles": 46800
+        },
+        {
+          "address": "$e3f0",
+          "cycles": 41349
+        }
+      ]
+    },
+    {
+      "id": "strings",
+      "input_sha256": "9c4a19a50a1a3f6dd57b868916b8a0e8813ba3109726b9d8ad0accd4e6ee8b59",
+      "cycles": 5870755,
+      "steps": 1182161,
+      "seconds_at_894886_hz": 6.560338411820053,
+      "carry_helper_cycles": 543984,
+      "internal_memory_helper_cycles": 1323215,
+      "stack_instruction_cycles": 1641463,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e40c",
+          "cycles": 500864
+        },
+        {
+          "address": "$e705",
+          "cycles": 132400
+        },
+        {
+          "address": "$e673",
+          "cycles": 128720
+        },
+        {
+          "address": "$e670",
+          "cycles": 94931
+        },
+        {
+          "address": "$e684",
+          "cycles": 90240
+        },
+        {
+          "address": "$e45c",
+          "cycles": 81760
+        },
+        {
+          "address": "$e6da",
+          "cycles": 61900
+        },
+        {
+          "address": "$e71b",
+          "cycles": 49830
+        },
+        {
+          "address": "$e71f",
+          "cycles": 49830
+        },
+        {
+          "address": "$e638",
+          "cycles": 48880
+        }
+      ]
+    },
+    {
+      "id": "subroutines",
+      "input_sha256": "f07a4c95556315110d86886e2b7fc6f387f7915ec097d1bc58483584ac2424e7",
+      "cycles": 5064558,
+      "steps": 1013913,
+      "seconds_at_894886_hz": 5.65944489018713,
+      "carry_helper_cycles": 533372,
+      "internal_memory_helper_cycles": 1044990,
+      "stack_instruction_cycles": 1485744,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e705",
+          "cycles": 121520
+        },
+        {
+          "address": "$e684",
+          "cycles": 113120
+        },
+        {
+          "address": "$e40c",
+          "cycles": 92976
+        },
+        {
+          "address": "$e45c",
+          "cycles": 88400
+        },
+        {
+          "address": "$e5a3",
+          "cycles": 86520
+        },
+        {
+          "address": "$e5a8",
+          "cycles": 86520
+        },
+        {
+          "address": "$e597",
+          "cycles": 74984
+        },
+        {
+          "address": "$e6da",
+          "cycles": 70850
+        },
+        {
+          "address": "$e71b",
+          "cycles": 60775
+        },
+        {
+          "address": "$e71f",
+          "cycles": 60775
+        }
+      ]
+    },
+    {
+      "id": "parser-edit-list",
+      "input_sha256": "12189c2ae6aa1ae29060a8ea40aec181e24035ec184437c90b14cf85fee274c0",
+      "cycles": 104043092,
+      "steps": 20612463,
+      "seconds_at_894886_hz": 116.26407385968716,
+      "carry_helper_cycles": 19200580,
+      "internal_memory_helper_cycles": 29346260,
+      "stack_instruction_cycles": 26530420,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e328",
+          "cycles": 6456000
+        },
+        {
+          "address": "$e332",
+          "cycles": 4304000
+        },
+        {
+          "address": "$e3b1",
+          "cycles": 4297600
+        },
+        {
+          "address": "$e334",
+          "cycles": 3819800
+        },
+        {
+          "address": "$e3b3",
+          "cycles": 3814120
+        },
+        {
+          "address": "$e40c",
+          "cycles": 2458872
+        },
+        {
+          "address": "$e0c0",
+          "cycles": 1875200
+        },
+        {
+          "address": "$e342",
+          "cycles": 1129800
+        },
+        {
+          "address": "$e39d",
+          "cycles": 1129800
+        },
+        {
+          "address": "$e45c",
+          "cycles": 1016640
+        }
+      ]
+    },
+    {
+      "id": "blackjack",
+      "input_sha256": "241d657d74b0df6f2a70bf819b5f6f8fbe5ecd890b4e6ffc96608dbd5b3332e2",
+      "cycles": 119190366,
+      "steps": 23886666,
+      "seconds_at_894886_hz": 133.1905583504491,
+      "carry_helper_cycles": 15649032,
+      "internal_memory_helper_cycles": 30378015,
+      "stack_instruction_cycles": 32053935,
+      "original_transcript_matches": true,
+      "top_source_sites": [
+        {
+          "address": "$e40c",
+          "cycles": 6075264
+        },
+        {
+          "address": "$e638",
+          "cycles": 2938640
+        },
+        {
+          "address": "$e328",
+          "cycles": 2740800
+        },
+        {
+          "address": "$e646",
+          "cycles": 2636720
+        },
+        {
+          "address": "$e64a",
+          "cycles": 2636720
+        },
+        {
+          "address": "$e45c",
+          "cycles": 2017120
+        },
+        {
+          "address": "$e332",
+          "cycles": 1827200
+        },
+        {
+          "address": "$e3b1",
+          "cycles": 1824720
+        },
+        {
+          "address": "$e334",
+          "cycles": 1621640
+        },
+        {
+          "address": "$e3b3",
+          "cycles": 1619439
+        }
+      ],
+      "phases": {
+        "deal_cycles": 24354392,
+        "dealer_cycles": 28095301
+      }
+    }
+  ]
+}

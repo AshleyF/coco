@@ -31,3 +31,43 @@ CPU interrupt behavior should be checked against the Motorola programming manual
 The native Integer BASIC translation exposed incorrect ADC/SBC condition codes at byte boundaries. `_adc8` and `_sbc8` previously folded carry/borrow into the operand before computing flags. The helpers now keep the original operand for overflow/half-carry and include carry/borrow separately in the result. An independent signed-range/nibble-sum check exhausts all 256 × 256 × 2 combinations for ADCA, ADCB, SBCA, and SBCB (524,288 instruction executions). Before the fix all four exhaustive checks failed; afterward the Node suite passes 187/187. The shared cases are also included in the browser CPU suite.
 
 Reference: Motorola M6809PM Appendix A, [ADC and SBC](https://www.maddes.net/m6809pm/appendix_a.htm). SBC half-carry is undefined and is not asserted. This correction does not resolve the separate interrupt/PIA/mapping findings above.
+
+## Cassette waveform correction — 2026-10-15
+
+The cassette's fast ROM shortcuts hid an incorrect audio format: one bits used
+two cycles instead of one and bytes were sent most-significant bit first.
+Encoding, decoding, simulated pulses and bit recording now use one cycle per bit,
+least-significant bit first. Motor-off pauses playback instead of rewinding it.
+Selecting the tape again rewinds it. The decoder also retains the final data bit.
+
+Protocol references: [XRoar cassette documentation](https://www.6809.org.uk/xroar/doc/xroar.shtml#Cassettes)
+and its `tape_byte_out` implementation in the official 1.12.1 source release.
+Tests go beyond encoder/decoder agreement: unmodified Color BASIC ROMs load and
+execute a native payload using PIA signal input with all cassette shortcuts off.
+A separate PCM adapter supplies actual WAV samples without our decoder or pulse
+generator. All 256 byte values also survive the WAV round trip exactly.
+The full native BASIC application passes the same CAS/PCM loading paths, and
+independent XRoar CAS/WAV tests recover every native segment and execute programs.
+These checks improve tape validation; the interrupt, PIA and memory-map findings
+above remain separate limits, and no physical cassette-cable test is claimed.
+
+Program-tape SAVE/LOAD now exercise recording as well as reading. The accelerated
+WRLDR path no longer drops leader bytes while recording: the existing byte-output
+intercept records them. Native round-trip tests load that recording through the
+ROM with tape shortcuts disabled, including raw WAV samples. Independent XRoar
+also records the native SAVE command through its actual cassette DAC; the native
+LOAD reads that waveform and runs the restored program. See
+[program-tape verification](ports/integer-basic/native/TAPE.md).
+
+## Native BASIC performance pass — 2026-10-15
+
+The native port now uses direct-page private state, cheaper wrapped indexing,
+conservative flag/carry optimization and fast guarded operand reads. Seven
+workloads require about 32–39% fewer target cycles and engine code shrinks 22.5%.
+At normal emulator speed Blackjack's deal drops from 27.7 to 17.2 seconds and
+the dealer turn from 31.8 to 19.2 seconds; noticeable pauses remain. The original
+game and ROM are unchanged. See [measurements and safeguards](ports/integer-basic/native/PERFORMANCE.md).
+
+These changes optimize the native application, not the emulator's interrupt,
+PIA or RAM-mapping issues listed above. The CPU and joystick regression suites
+still pass; independent XRoar checks also run the optimized native binary.

@@ -1,6 +1,6 @@
 // Browser UI for the shared CoCo machine.
-import { CoCo } from './coco-machine.js?v=tape-fsk-1';
-import { casToWAV } from './cassette.js?v=tape-fsk-1';
+import { CoCo } from './coco-machine.js?v=tape-files-1';
+import { casToWAV } from './cassette.js?v=tape-files-1';
 export { CoCo };
 
 // === UI wiring ===
@@ -12,6 +12,11 @@ if (canvas) coco.setCanvas(canvas);
 // Keyboard and joystick events
 // Alt/Ctrl+Arrow/Space = joystick (consumed, not sent to CoCo keyboard)
 // All other keys go to CoCo keyboard
+// Monitor choice changes RG6 presentation only; native video RAM stays intact.
+document.getElementById('graphicsMonitor')?.addEventListener('change', e => {
+    coco.vdg.artifactColors = e.target.value !== 'sharp';
+    e.target.blur();
+});
 document.getElementById('joystickKeys')?.addEventListener('change', (e) => {
     coco.keyboard.clearAll();
     coco.joystick.setKeyboardMode(e.target.value);
@@ -218,6 +223,49 @@ document.getElementById('tapeFile')?.addEventListener('change', async (e) => {
     updateTapeStatus();
 });
 
+// Both local files and the software library mount the same cassette device.
+// Library entries contain instructions, never an automatic CLOADM/EXEC sequence.
+const softwareTapes = {
+    'integer-basic': {path: 'software/integer-basic.cas', name: 'Integer BASIC', instructions: 'At Color BASIC’s OK prompt, type CLOADM, wait for OK, then EXEC.'},
+    'star-trek-program': {path: 'software/star-trek-program.cas', name: 'Apple Star-Trek program', instructions: 'In Integer BASIC, enter HIMEM=27904, then LOAD "STARTREK". Wait for LOADED, then RUN.'},
+    'blackjack-program': {path: 'software/blackjack-program.cas', name: 'Blackjack program', instructions: 'In Integer BASIC, type LOAD "BLACKJAK", wait for LOADED, then RUN.'},
+};
+let libraryLoading = false;
+document.querySelectorAll('[data-library-tape]').forEach(button => {
+    button.addEventListener('click', async () => {
+        if (libraryLoading) return;
+        const entry = softwareTapes[button.dataset.libraryTape];
+        if (!entry) return;
+        libraryLoading = true;
+        const buttons = document.querySelectorAll('[data-library-tape]');
+        buttons.forEach(b => { b.disabled = true; });
+        const message = document.getElementById('software-message');
+        message.textContent = `Loading ${entry.name} tape…`;
+        try {
+            const response = await fetch(entry.path, {cache: 'no-store'});
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.arrayBuffer();
+            coco.cassette.loadCAS(data);
+            // These bundled native applications use a fine-pixel text console.
+            coco.vdg.artifactColors = false;
+            const monitor = document.getElementById('graphicsMonitor');
+            if (monitor) monitor.value = 'sharp';
+            const filename = entry.path.split('/').pop();
+            if (tapeLabel) tapeLabel.textContent = `🎵 ${filename}`;
+            status.textContent = `Tape mounted: ${entry.name}`;
+            message.textContent = `${entry.name} tape mounted. ${entry.instructions}`;
+            updateTapeStatus();
+            button.blur();
+        } catch (error) {
+            message.textContent = `Could not load ${entry.name}. The tape may be unavailable on this server. Your current tape is unchanged.`;
+            console.error('Software library tape load failed:', entry.path, error);
+        } finally {
+            libraryLoading = false;
+            buttons.forEach(b => { b.disabled = false; });
+        }
+    });
+});
+
 document.getElementById('recordTape')?.addEventListener('click', () => {
     if (coco.cassette.recording) {
         // Stop recording
@@ -227,7 +275,7 @@ document.getElementById('recordTape')?.addEventListener('click', () => {
         // Start recording
         coco.cassette.startRecording();
         if (tapeLabel) tapeLabel.textContent = '🎵 ⏺ Recording armed';
-        status.textContent = 'Recording armed. Type CSAVE"NAME" in BASIC.';
+        status.textContent = 'Recording armed. Use CSAVE"NAME" in CoCo BASIC or SAVE "NAME" in Integer BASIC.';
     }
     updateTapeStatus();
 });
@@ -239,7 +287,7 @@ document.getElementById('saveTapeCAS')?.addEventListener('click', () => {
             ? new Uint8Array(coco.cassette.recordBuffer)
             : (coco.cassette.playBuffer || new Uint8Array(0)));
     if (data.length === 0) {
-        status.textContent = 'No tape data to save. Click Record, then CSAVE in BASIC.';
+        status.textContent = 'No tape data to save. Click Record, then CSAVE (CoCo BASIC) or SAVE (Integer BASIC).';
         return;
     }
     downloadBlob(new Blob([data]), 'program.cas');
@@ -253,7 +301,7 @@ document.getElementById('saveTapeWAV')?.addEventListener('click', () => {
             ? new Uint8Array(coco.cassette.recordBuffer)
             : (coco.cassette.playBuffer || new Uint8Array(0)));
     if (data.length === 0) {
-        status.textContent = 'No tape data to save. Click Record, then CSAVE in BASIC.';
+        status.textContent = 'No tape data to save. Click Record, then CSAVE (CoCo BASIC) or SAVE (Integer BASIC).';
         return;
     }
     const wav = casToWAV(data);
@@ -347,13 +395,10 @@ document.getElementById('pasteCode')?.addEventListener('click', () => {
 
 // === On-screen keyboard ===
 document.getElementById('kbToggle')?.addEventListener('click', () => {
-    document.getElementById('keyboard-wrap')?.classList.toggle('visible');
+    const visible = document.getElementById('keyboard-wrap')?.classList.toggle('visible');
+    document.getElementById('kbToggle')?.setAttribute('aria-expanded', String(!!visible));
 });
 
-// Auto-show on touch devices
-if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-    document.getElementById('keyboard-wrap')?.classList.add('visible');
-}
 
 let _shiftSticky = false;
 const _shiftKeyEl = document.getElementById('shiftKey');

@@ -91,7 +91,7 @@
         }
         .joy-group canvas { border: 1px solid #333; background: #111; }
         .joy-label { font-size: 0.8em; color: #555; }
-        #joystickKeys {
+        #joystickKeys, #graphicsMonitor {
             color-scheme: dark;
             background: #333;
             color: #fff;
@@ -100,7 +100,7 @@
             font-family: inherit;
             padding: 0.35em 0.55em;
         }
-        #joystickKeys option { background: #333; color: #fff; }
+        #joystickKeys option, #graphicsMonitor option { background: #333; color: #fff; }
 
         /* On-screen CoCo keyboard */
         #keyboard-wrap {
@@ -151,6 +151,17 @@
         .kb-key.wider { flex: 1.8; }
         .kb-key.space { flex: 4; }
 
+        /* Bundled software: mounting a tape leaves command entry to the user. */
+        #software { width: 100%; max-width: 540px; padding: 4px; color: #bbb; }
+        #software h2 { font-size: 1em; color: #0d0; margin: 0.5em 0; }
+        .software-item { background: #222; border: 1px solid #444; border-radius: 4px; padding: 9px; margin-bottom: 6px; font-size: 0.8em; line-height: 1.5; }
+        .software-item h3 { color: #eee; font-size: 1em; margin: 0 0 4px; }
+        .software-item p { margin: 4px 0; }
+        .software-item button, .software-item a { display: inline-block; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; font: inherit; text-decoration: none; cursor: pointer; }
+        .software-item button:disabled { opacity: 0.5; cursor: wait; }
+        .software-item code { color: #cfc; white-space: nowrap; }
+        #software-message { color: #cfc; font-size: 0.8em; line-height: 1.5; margin: 4px 0; }
+
         /* FPS */
         #fps {
             position: fixed; top: 3px; right: 6px;
@@ -177,7 +188,7 @@
     <div class="controls">
         <button id="reset">⟲</button>
         <button id="soundToggle">🔇</button>
-        <button id="kbToggle" title="On-screen keyboard">⌨</button>
+        <button id="kbToggle" title="On-screen keyboard" aria-controls="keyboard-wrap" aria-expanded="true">⌨</button>
         <span class="sep">│</span>
         <button id="loadRom">ROM</button>
         <button id="loadCart">Cart</button>
@@ -218,7 +229,15 @@
         Select a joystick, then use plain arrows to move and Space to fire.
     </div>
 
-    <div id="keyboard-wrap">
+    <div class="joy-label" style="text-align:center; margin:0.3em 0;">
+        <label for="graphicsMonitor">Graphics display:</label>
+        <select id="graphicsMonitor">
+            <option value="composite">NTSC artifact color</option>
+            <option value="sharp">Sharp pixels (text)</option>
+        </select>
+    </div>
+
+    <div id="keyboard-wrap" class="visible">
         <div class="kb-row">
             <div class="kb-key" data-key="1" data-shift="!"><span class="sh">!</span>1</div>
             <div class="kb-key" data-key="2" data-shift="&quot;"><span class="sh">&quot;</span>2</div>
@@ -283,10 +302,41 @@
         </div>
     </div>
 
+    <section id="software" aria-labelledby="software-heading">
+        <h2 id="software-heading">Software library</h2>
+        <div class="software-item">
+            <h3>Color Forth</h3>
+            <p>The bundled Forth cartridge. Opens a fresh emulator and starts automatically.</p>
+            <a href="?cart=colorforth" target="_blank" rel="noopener">Start Color Forth</a>
+        </div>
+        <div class="software-item">
+            <h3>Integer BASIC</h3>
+            <p>Woz's Apple-1 BASIC on the CoCo, with a native 40×24 graphics terminal.</p>
+            <button type="button" data-library-tape="integer-basic">Mount Integer BASIC tape</button>
+            <p>At Color BASIC’s <code>OK</code> prompt: <code>CLOADM</code>, wait for <code>OK</code>, then <code>EXEC</code>.</p>
+        </div>
+        <div class="software-item">
+            <h3>Blackjack</h3>
+            <p>The historical Apple-1 game. Start Integer BASIC using its tape above, then mount this program tape.</p>
+            <button type="button" data-library-tape="blackjack-program">Mount Blackjack program tape</button>
+            <p>In Integer BASIC, type <code>LOAD "BLACKJAK"</code>, wait for <code>LOADED</code>, then <code>RUN</code>.</p>
+            <p>The first shuffle can pause at “I SHOW” for about 20 seconds at normal speed.</p>
+        </div>
+        <div class="software-item">
+            <h3>Apple Star-Trek (1977)</h3>
+            <p>Robert J. Bishop's Apple-1 BASIC game. Explore, scan and battle Klingons.</p>
+            <p>Start Integer BASIC using its tape above, then mount this program tape.</p>
+            <button type="button" data-library-tape="star-trek-program">Mount Star Trek program tape</button>
+            <p>In Integer BASIC: <code>HIMEM=27904</code>, then <code>LOAD "STARTREK"</code>. Wait for <code>LOADED</code>, then <code>RUN</code>.</p>
+            <p>Enter <code>1</code> at “TYPE A NUMBER”. Commands: <code>1</code> short scan, <code>2</code> long scan, <code>5</code> computer. Initialization takes time. The original scan layout fits the 40×24 terminal.</p>
+            <p><a href="ports/integer-basic/demos/STAR-TREK.md" target="_blank" rel="noopener">Commands &amp; historical sources</a></p>
+        </div>
+        <p id="software-message" role="status" aria-live="polite"></p>
+    </section>
     <div id="fps"></div>
     <div style="margin-top:0.5em;font-size:0.65em;color:#444;">
         ROMs &amp; software: <a href="https://colorcomputerarchive.com" target="_blank" style="color:#484;">colorcomputerarchive.com</a>
     </div>
-    <script type="module" src="coco.js?v=tape-fsk-1"></script>
+    <script type="module" src="coco.js?v=separate-program-tapes-1"></script>
 </body>
 </html>

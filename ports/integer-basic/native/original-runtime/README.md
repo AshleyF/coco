@@ -16,6 +16,9 @@ as native 6809 addresses. Source address labels allow tracing back to the ROM.
 The native A register holds the algorithm's accumulator, native B its byte index,
 and a private byte holds its second byte index. Helpers handle carry convention,
 flag preservation, eight-bit indexed wrapping and overlapping workspace aliases.
+DP=$40 and fixed U=$4080 accelerate private byte indexing; native X/Y are
+scratch. ROM I/O and user CALL see DP=0 and restore the engine registers on
+return. See [performance measurements](../PERFORMANCE.md).
 These are translations of this interpreter's algorithms, not a general 6502
 binary translator or a CPU emulator.
 
@@ -41,7 +44,8 @@ Platform adaptations:
 
 - Color BASIC KEYIN and CHROUT supply the real CoCo keyboard and screen. Backspace
   byte 8 is mapped to Apple's underscore-delete key; CLEAR byte 12 maps to Escape
-  line cancellation. Lowercase is uppercased.
+  line cancellation. BREAK byte 3 maps to Control-D for AUTO cancellation.
+  Lowercase is uppercased.
 - Program execution checks for waiting keys at the original control-flow points.
   A stopping key is retained for the command prompt.
 - PEEK/POKE access actual CoCo memory. CALL executes native 6809 instructions and

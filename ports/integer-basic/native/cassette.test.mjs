@@ -48,6 +48,16 @@ waitFor(/>PRINT 1_2\s*\n2\s*\n\s*\n>/);
 type('PRINT 99',false);key('Escape');type('PRINT 7\n');
 waitFor(/PRINT 7\s*\n7\s*\n\s*\n>/);
 assert.doesNotMatch(screen(),/\n99\s*\n|SYNTAX ERR/);
+type('AUTO 100\n');waitFor(/>100\s*$/);
+type('PRINT 9\n');waitFor(/>110\s*$/);
+type('END\n');waitFor(/>120\s*$/);
+key('F12');key('Enter');waitFor(/>\s*$/);
+type('LIST\n');waitFor(/>\s*$/);
+assert.match(screen(),/100 PRINT 9/);
+assert.match(screen(),/110 END/);
+assert.doesNotMatch(screen(),/120 (PRINT|END|LIST)/);
+type('RUN\n');waitFor(/>RUN\s*\n9\s*\n\s*\n>/);
+type('SCR\n');waitFor(/>\s*$/);
 for(const line of ['10 DIM A(2),B$(5)','20 B$="HI"','30 FOR I=1 TO 2',
     '40 A(I)=I*7:GOSUB 100','50 NEXT I','60 END','100 PRINT B$;A(I):RETURN']) {
     type(line+'\n');waitFor(/>\s*$/);

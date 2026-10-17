@@ -21,8 +21,9 @@ ${data.join('\n')}
 demo_start
         orcc #$50
         lds #$7f00
-        clra
+        lda #$40
         tfr a,dp
+        ldu #$4080
         jmp $${match[1]}
         end demo_start
 `);

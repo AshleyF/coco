@@ -3,32 +3,56 @@
 Blackjack (also called **21**) is our first recovered historical game. This is
 the Apple-1 BASIC game, not a newly written imitation. Its author is unknown.
 
+Bishop's **Apple Star-Trek** (1977) is also available. See [history, loading,
+commands and provenance limits](STAR-TREK.md). Build it with `make star-trek`,
+verify with `make star-trek-test`, and publish local site assets with
+`make web-software`.
+
 ## Play on the CoCo
 
-From `ports/integer-basic`, run:
+The main page's **Software library** provides separate **Integer BASIC** and
+**Blackjack program** tapes. Load BASIC with `CLOADM`, wait for `OK`, then
+`EXEC`. Mount the game tape, enter `LOAD "BLACKJAK"`, wait for `LOADED`, then
+`RUN`. Mounting does not type commands for you. The keyboard is expanded by default.
 
-```sh
-make demos
-```
+At normal CoCo speed, the first shuffle pauses at `I SHOW` for about 17 seconds;
+the dealer turn can take about 19 seconds. It continues after those loops finish.
 
-In the web CoCo emulator, start at the normal Color BASIC `OK` prompt:
 
-1. Choose **Tape** and select `build/blackjack.cas` in this directory.
-2. Type `CLOADM` and press Enter. Wait for `OK`.
-3. Type `EXEC` and press Enter. The native Woz BASIC `>` prompt appears.
-4. Type `RUN`. Enter your name, a numeric bet, and `Y` or `N` at `HIT?`.
-5. Enter a bet of `0` to finish. `RUN` starts another game.
+### Load the game as an individual BASIC program
 
-The tape contains the native MC6809 interpreter and the game's already entered
-native BASIC program records. A small native startup stub enters the interpreter
-without erasing the game. There is no 6502 interpreter or machine-code game in
-this cassette. Regenerate the cassette when the native interpreter changes;
-its saved program format and warm entry belong to that particular build.
+Run `make native demos` in `ports/integer-basic`. Then, in the web emulator:
 
-The ordinary interpreter cassette remains `build/prompt.cas`.
-`make demos` also creates `build/blackjack.wav`, containing cassette audio.
-`blackjack.bas` is available for source entry. Bulk paste can outrun tokenization
-of long lines; the preloaded demo cassette avoids that input-pacing issue.
+1. Choose **Tape** → `build/prompt.cas`. At CoCo BASIC's `OK` prompt type
+   `CLOADM`, wait for `OK`, then type `EXEC` to start Integer BASIC.
+2. Choose **Tape** → **`build/blackjack-program.cas`**.
+3. At Integer BASIC's `>` prompt type `LOAD "BLACKJAK"` (the cassette name is
+   eight characters), wait for `LOADED`, then type `RUN`.
+4. Enter your name, a numeric bet, and `Y` or `N` at `HIT?`. Bet `0` to quit.
+
+The program-only tape is just **1,530 tokenized program bytes**, plus cassette
+headers and checksums. It contains no interpreter, native machine code or saved
+variables. `build/blackjack-program.wav` carries the same program as audio.
+Load it with Integer BASIC's `LOAD`, not CoCo BASIC's `CLOADM`.
+
+To save your own copy after quitting the game, click **⏺**, type
+`SAVE "MY21"`, wait for `SAVED`, stop recording, then click **CAS** or **WAV**.
+You can `SCR` and `LIST` to confirm the program has been cleared, select your
+downloaded tape with **Tape**, then `LOAD "MY21"` and `RUN` to play again.
+Loading clears gameplay variables; it does not resume a hand. See
+[program-tape instructions](../native/TAPE.md) for file limits and recovery.
+
+`program-tape-build.mjs` enters the recovered source into the native interpreter
+and uses its actual `SAVE` command and the CoCo ROM to produce these files.
+The program format is versioned; it contains no addresses tied to an interpreter
+build. Rebuild it when the recovered source or program-file format changes.
+
+### Internal preloaded test fixtures
+
+`make demos` also builds `build/blackjack.cas/.wav`, a snapshot containing the
+interpreter with the game already installed. These are retained for regression
+tests and are not published in the website library. They have no separate
+program file for `LOAD` to read. Use separate BASIC and program tapes to play.
 
 ## Provenance and exact source recovery
 
@@ -79,6 +103,16 @@ matrix. It does not replace KEYIN or CHROUT with host services.
 
 The browser UI was also verified with the actual Tape file chooser, `CLOADM`,
 `EXEC` and `RUN`; the recovered game's `WELCOME TO 21. YOUR NAME?` prompt appeared.
+
+The program-only workflow test boots an empty interpreter through `CLOADM/EXEC`,
+loads the game with `LOAD`, plays a hand, saves through `SAVE`, clears with `SCR`,
+reloads, and plays a second hand. It checks exact program bytes, the complete
+original LIST, variables cleared on reload, and both complete game transcripts
+against C and independent py65 execution of the unchanged original ROM. It runs
+with program CAS input and raw WAV samples, with tape loading shortcuts disabled.
+The first session stands, wins and quits; the second rejects an excessive bet,
+hits, busts, loses and quits, preserving the original RNG sequence across RUNs.
+`build/blackjack-program-test.json` records the transcripts and artifact hashes.
 
 ## Other candidates and original tape loading
 

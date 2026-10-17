@@ -2,8 +2,9 @@
 // All token/error decisions execute as 6809 instructions from that binary.
 import {readFileSync} from 'node:fs';
 import {CoCo} from '../../../../coco-machine.js';
-const binary=readFileSync('build/prompt.bin');
-const symbols=Object.fromEntries(readFileSync('build/prompt.sym','utf8').trim()
+const graphics=process.argv.includes('--graphics'),profile=graphics?'graphics':'prompt';
+const binary=readFileSync(`build/${profile}.bin`);
+const symbols=Object.fromEntries(readFileSync(`build/${profile}.sym`,'utf8').trim()
     .split('\n').map(line=>{const [,name,hex]=/^(\w+) EQU \$([\da-f]+)$/i.exec(line.trim());return[name,parseInt(hex,16)];}));
 function parse(source) {
     if(source.length>127||/[^\x20-\x7e]/.test(source))throw Error('Expected one edited ASCII line');
@@ -16,6 +17,8 @@ function parse(source) {
     machine.mem.ram[symbols.t_token_index]=source.length;
     const cpu=machine.cpu;
     cpu.s=0x7f00;
+    cpu.dp=graphics?0x50:0x40; // Native internal entry ABI; normal boot establishes these.
+    cpu.u=graphics?0x5080:0x4080;
     cpu.pushS16(0x0700); // Stop before executing this synthetic return address.
     cpu.pc=symbols.t_Se491;
     cpu.a=0xff;

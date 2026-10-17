@@ -23,6 +23,19 @@ const cancelled=runNative('PRINT 99\x0cPRINT 7\n');
 assert.equal(cancelled.status,0);
 assert.deepEqual(cancelled.output.split('\n').filter(x=>/^-?\d+$/.test(x)),['7']);
 assert.doesNotMatch(cancelled.output,/ERR/);
+const autoCancel=runNative('AUTO 100\nPRINT 9\nEND\n\x03\nLIST\nRUN\n');
+assert.equal(autoCancel.status,0);
+assert.deepEqual(autoCancel.output.split('\n').filter(x=>/^-?\d+$/.test(x)),['9']);
+assert.match(autoCancel.output,/100 PRINT 9\n/);
+assert.match(autoCancel.output,/110 END \n/);
+assert.doesNotMatch(autoCancel.output,/ERR|120 (PRINT|END|LIST)/);
+const autoSource='AUTO 100\nPRINT 9\nEND\n\x04\nLIST\nRUN\n';
+for(const [command,args] of [['./build/apple1',['reference/a1basic.bin','1000000']],
+    ['python3',['oracle/py65_runner.py']]]) {
+    const reference=spawnSync(command,args,{input:autoSource,encoding:'utf8'});
+    assert.equal(reference.status,0);
+    assert.equal(autoCancel.output,reference.stdout,'CoCo BREAK must reproduce original Control-D');
+}
 for(const address of [0,768,0x4000,0x4fff,0x7001,0x7f00,32767]) {
     for(const command of ['LOMEM','HIMEM']) {
         const r=runNative(`A=7\n${command}=${address}\nPRINT A\n`);
@@ -65,6 +78,15 @@ const call=runNative('POKE 768,134\nPOKE 769,42\nPOKE 770,183\nPOKE 771,3\n'
 assert.equal(call.status,0);
 assert.match(call.output,/\n42\n/);
 assert.match(call.output,/\n17\n/);
+// A user CALL sees Color BASIC's direct page, and may clobber DP/U without
+// changing the interpreter's private-page ABI after it returns.
+const callCode=[0x1f,0xb8,0xb7,0x03,0x20,0xce,0x12,0x34,0x86,0x12,0x1f,0x8b,0x39];
+const callABI=runNative(callCode.map((v,i)=>`POKE ${768+i},${v}\n`).join('')
+    +'CALL 768\nPRINT PEEK(800)\nA=17\nPRINT A+2\n');
+assert.equal(callABI.status,0);
+assert.deepEqual(observations(callABI.output),['0','19']);
+assert.equal(callABI.machine.cpu.dp,0,'Runner stops inside the DP=0 ROM input boundary');
+assert.equal(callABI.machine.cpu.u,0x4080,'CALL restores the engine index base');
 console.log('Full native engine: layout, LE values, backspace, bounds, heap growth, active FOR, original failed-DIM behavior, and native CALL passed.');
 
 // These accepted-but-broken getters underflow the original noun stack. Their

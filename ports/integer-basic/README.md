@@ -1,8 +1,25 @@
 # Woz Integer BASIC for the CoCo
 
+The native cassette release is ready. See the
+[release verification and reproduction commands](native/RELEASE.md).
+
 An original Apple-1 **Blackjack / 21** demo is available: see
 [historical demos and cassette loading instructions](demos/README.md).
 `make demos` builds `build/blackjack.cas` for Tape → `CLOADM` → `EXEC` → `RUN`.
+It also builds **`build/blackjack-program.cas`** and `.wav`: start Integer BASIC,
+select that program tape, then `LOAD "BLACKJAK"` and `RUN`. The
+[demo instructions](demos/README.md) include saving and reloading your own copy.
+
+Inside Integer BASIC, `SAVE "NAME"` and `LOAD "NAME"` now save and restore
+individual programs using CoCo cassette routines. See the
+[program-tape instructions](native/TAPE.md), including recording/download steps
+and the 3,584-byte program limit. These are CoCo extensions to the original.
+
+The website's application tapes use the [native 40×24 graphics terminal](native/GRAPHICS.md).
+Build it with `make native-graphics graphics-demos`, verify with
+`make graphics-test` and `make graphics-xroar-test`, and refresh website assets
+with `make web-software`. The older `make native` ROM-console build remains
+available; its files and memory layout are documented below.
 
 Status: Apple-1 BASIC assembles byte-for-byte against the reference. The native MC6809E cassette application implements the language, including stored programs, loops/subroutines, numeric arrays, strings, INPUT, and RNG. The audited suite now contains 931 behavioral contracts. Platform policies and remaining fidelity limits are documented in [native/PORTING.md](native/PORTING.md).
 
@@ -10,6 +27,10 @@ A [complete native translation of the original algorithms](native/original-runti
 is now the default backend. Validation includes all 931 contracts, independent
 historical Blackjack comparisons, 1,558 parser token/error cases, 1,300 legacy
 snapshots, and physical `CLOADM`/`EXEC` checks. CAS and WAV audio are built together.
+
+The [performance pass](native/PERFORMANCE.md) reduces measured CPU work by about
+32–39% and engine size by 22.5%, retaining exact original transcripts. It also
+records normal-speed Blackjack timings and a repeatable benchmark gate.
 
 The application contains native MC6809E instructions and uses stock CoCo console services. The CoCo ROM loader is tested with cassette shortcuts disabled, including input from the saved WAV samples. Electrical playback on a physical machine remains unverified.
 
@@ -32,7 +53,7 @@ This is a Replica 1 reference candidate, not yet authenticated against an origin
 
 For Apple II instead, there is an annotated listing and downloadable project/binary set at https://www.6502disassembly.com/a2-rom/ . Its listing is based on the DOS 3.3 system master image; choose and fingerprint a specific version before porting.
 
-## Proposed sequence
+## Original development roadmap
 
 1. Authenticate and freeze the selected interpreter image. Assemble its source and require byte-for-byte equality with the chosen binary.
 2. Build a deterministic headless Apple oracle with a tested NMOS 6502 core. Apple-1 needs RAM, BASIC, monitor dependencies, and PIA keyboard/display at $D010-$D013. Preserve readiness bits, input high bits, and read side effects; blindly replacing every I/O access with a host call can change behavior.
@@ -41,6 +62,12 @@ For Apple II instead, there is an annotated listing and downloadable project/bin
 5. Translate routines in dependency order: console, initialization, decimal conversion, arithmetic, tokenizer/parser, variables/strings, program editing, control flow. Preserve token tables and computed-dispatch semantics. Track each source routine's mapped 6809 entry and test status.
 6. Compare both implementations using identical transcripts: precedence, negative numbers, arithmetic overflow/division, syntax and runtime errors, numbered-line replacement/deletion, LIST/RUN, FOR/NEXT, GOSUB/RETURN, arrays/strings, and INPUT. Derive expected behavior from the original, not modern BASIC assumptions.
 7. Package a CAS cassette image for CLOADM/EXEC, then WAV audio and a disk image for LOADM/EXEC. Test first in this emulator, then XRoar, then real hardware. Tape timing must not depend on this emulator's ROM shortcuts.
+
+The selected-reference cassette implementation is now delivered as CAS and WAV,
+validated in this emulator and independently in XRoar with tape shortcuts off.
+Historical image authentication, disk-image packaging/Disk BASIC workspace
+compatibility, and electrical playback on real hardware remain later platform
+work; they are not claimed by this cassette release.
 
 ## Translation traps
 
@@ -135,7 +162,7 @@ python3 oracle/golden.py record --count 10000 --golden build/golden-10000.jsonl
 
 The saved metadata fingerprints the ROM and identifies the CPU core, generator seed, and output convention. Regeneration is deliberate: do not update expected results automatically when the port disagrees. Review and minimize failing transcripts before changing either implementation.
 
-`build/coverage.json` reports instruction entry coverage against instructions identified in the ca65 listing, uncovered addresses with assembly text, per-address execution counts, and ROM read coverage. Current instruction measurement: 1,532 / 1,545 entries (99.16%). See oracle/COVERAGE.md for the remaining ten apparent padding NOPs and three non-NOP entries awaiting reachability review. The rest includes tables/padding as well as unexecuted paths; 100% ROM-byte execution would be an invalid goal. ROM read counts include instruction fetches and operands, so they are not a pure data-table metric. This does not measure branch/condition coverage yet or prove correctness of the emulator. Semantic breadth, branch coverage, and independent emulator cross-checks remain necessary.
+`build/coverage.json` reports instruction entry coverage against instructions identified in the ca65 listing, uncovered addresses with assembly text, per-address execution counts, and ROM read coverage. Current instruction measurement: 1,532 / 1,545 entries (99.16%). See oracle/COVERAGE.md for the remaining ten apparent padding NOPs and three non-NOP entries awaiting reachability review. The rest includes tables/padding as well as unexecuted paths; 100% ROM-byte execution would be an invalid goal. ROM read counts include instruction fetches and operands, so they are not a pure data-table metric. This legacy report does not measure branch/condition coverage or prove correctness of the emulator; the audited suite below has separate branch-outcome measurements. Semantic breadth, branch coverage, and independent emulator cross-checks remain necessary.
 
 To compare a future native runner:
 

@@ -9,7 +9,7 @@ import { VDG } from './vdg.js';
 import { Keyboard } from './keyboard.js';
 import { Joystick } from './joystick.js?v=joystick-input-2';
 import { Sound } from './sound.js';
-import { Cassette } from './cassette.js?v=tape-fsk-1';
+import { Cassette } from './cassette.js?v=tape-files-1';
 
 const CYCLES_PER_FRAME = 14914; // ~894,886 Hz / 60 fps
 
@@ -516,7 +516,9 @@ export class CoCo {
                 (this.mem.cartrom && this._cartBootFrames !== undefined && this._cartBootFrames < 300);
             if (this.cassette.motorOn || this.cassette.recording || cartBooting) {
                 // $A7D8: WRLDR — write leader + data. Skip entirely.
-                if (pc === 0xA7D8) { this.cpu.pc = 0xA7E4; executed += 100; continue; }
+                // A recording needs the leader bytes for a real ROM reader to
+                // synchronize. Byte-OUT acceleration already makes this cheap.
+                if (pc === 0xA7D8 && !this.cassette.recording) { this.cpu.pc = 0xA7E4; executed += 100; continue; }
                 // $A7CA: CASON — motor on + delay. Skip delay but charge real cycle cost.
                 if (pc === 0xA7CA) {
                     const val = this.mem.read(0xFF21) | 0x08;

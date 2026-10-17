@@ -30,7 +30,7 @@ return function runNative(source, { budget = 50_000_000, event = null } = {}) {
     machine.loadDECB(binary, { execute: true });
     const cpu = machine.cpu;
     const keyin = cpu.read16(0xa000);
-    const charout = cpu.read16(0xa002);
+    const charout = symbols.gt_write ?? cpu.read16(0xa002);
     let cursor = 0, output = '', eventDelivered = false;
     for (let steps = 0; steps < budget; steps++) {
         // Supply keyboard bytes at the Color BASIC ABI entry. This is the only
@@ -56,8 +56,8 @@ return function runNative(source, { budget = 50_000_000, event = null } = {}) {
             cpu.pc = cpu.pullS16();
             continue;
         }
-        // Observe the native cout call BEFORE Color BASIC's physical wrapping
-        // and scrolling. Still execute CHROUT so screen behavior is exercised.
+        // Observe native cout before physical wrapping/scrolling. Execute either
+        // stock CHROUT or the native bitmap renderer; neither is replaced.
         if (cpu.pc === charout && cpu.read16(cpu.s) === symbols.t_console_out_return) {
             const ch = cpu.a & 0x7f;
             output += ch === 13 ? '\n' : String.fromCharCode(ch);

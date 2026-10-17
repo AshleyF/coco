@@ -1,9 +1,18 @@
 # Native Apple-1 Integer BASIC for the CoCo
 
 `make native` builds `build/prompt.bin`, `build/prompt.cas`, and `build/prompt.wav`.
-Boot a 32K or larger CoCo to Color BASIC, select the CAS file using **Tape**, and
+Boot a 32K or larger CoCo with Extended Color BASIC, select the CAS file using **Tape**, and
 enter `CLOADM`, then `EXEC`. Entry is `$0800`. Reset returns to Color BASIC.
 The WAV contains audio for the same cassette payload.
+
+The CoCo extension adds prompt-only `SAVE "NAME"` and `LOAD "NAME"` for
+individual programs through the existing Tape/Record/CAS/WAV controls. See
+[TAPE.md](TAPE.md) for usage, the 3,584-byte limit and missing-tape recovery.
+
+The website now packages a separate [native 40×24 graphics-console build](GRAPHICS.md).
+`make native-graphics graphics-demos` builds it; `make web-software` updates the
+website tapes. The `prompt.*` ROM-console build and memory map documented below
+remain available as a fallback.
 
 ## Implementation and correspondence
 
@@ -26,6 +35,14 @@ normal conventions. The native A/B registers hold two original byte values; a
 private byte holds the other byte index. Helpers preserve carry conventions,
 byte wrapping, required flags and overlapping private workspace aliases.
 
+The engine uses DP=$40 and fixes native U at $4080 for private byte indexing.
+Native X/Y are scratch; dispatch uses Y. ROM KEYIN/CHROUT and native user CALL
+run with DP=0, then restore DP/U and the interpreter registers. Internal warm
+entry points require DP=$40 and U=$4080; normal EXEC, tape and demo bootstraps set
+them. Conservative flag analysis and fast operand readers reduce translation
+overhead while retaining unusual-index fallbacks. See [PERFORMANCE.md](PERFORMANCE.md)
+for measured results, profiling commands and optimization-specific checks.
+
 The earlier handwritten implementation remains in `prompt.asm`, `expressions.asm`,
 `programs.asm`, `storage.asm`, `io.asm` and `memory.asm` for comparison. It is not
 linked into the default application. `make native-handwritten` and
@@ -39,9 +56,13 @@ acceptance results must not be presented as evidence for the released binary.
 | `$0800` through `t_code_end`, below `$4000` | Native interpreter, dispatch and helpers |
 | `$4000-$42FF` | Relocated original private byte workspace, control frames and input buffer |
 | `$4300-$4306` | Native helper state |
+| `$4308-$4375` | Program-tape state and saved CoCo cassette workspace |
+| `$4400-$4BFF` | Native SAVE/LOAD extension |
 | `$4C00-$4DFF` | Original grammar data |
+| `$4E00-$4EFF` | Cassette block buffer |
 | `$5000-$57FF` | Initial 2 KiB variable/program arena |
 | `$5800-$6FFF` | Available expansion through HIMEM |
+| `$7000-$7DFF` | Incoming program-tape staging |
 | `$7E00-$7EFF` | Native hardware stack, initialized at `$7F00` |
 
 Variables grow up from LOMEM; programs grow down from HIMEM. Initial usable
@@ -65,7 +86,9 @@ Arbitrary POKE into interpreter state remains capable of corrupting the program.
 
 Color BASIC KEYIN/CHROUT provide physical console I/O. Lowercase is uppercased;
 CoCo backspace byte 8 maps to the original underscore-delete key; CLEAR byte 12
-(Escape in the web keyboard) maps to Apple's Escape line cancellation. Logical output
+(Escape in the web keyboard) maps to Apple's Escape line cancellation. CoCo BREAK
+(F12/Pause or the on-screen BRK key) maps to Control-D; press BREAK then Enter
+to leave AUTO numbering. Logical output
 is observed before the CoCo's physical 32-column wrapping. Original TAB/LIST
 formatting therefore remains in the transcript, while the screen wraps sooner.
 Program execution polls at original record boundaries; NEXT/RETURN continuations
@@ -80,6 +103,7 @@ make verify-native  # Actual released binary: parser, language, layout, platform
 make verify-oracle  # Unchanged ROM, CPU functional check, contracts, independent
                     # py65 agreement, targeted faults and broad mutation sample
 python3 native/original-runtime/replay.py
+make native-xroar-test # Optional installed XRoar, independent 6809 and tape/audio
 node native/runner.mjs < commands.bas
 ```
 
@@ -104,6 +128,14 @@ actual PCM samples, supplied through PIA input. The PCM path bypasses both the
 WAV-to-CAS decoder and CAS pulse generator. A small independent native payload
 also verifies each tape path through the CoCo ROM's timing/checksum routines.
 
+An independent XRoar 1.12.1 run loads both CAS and WAV with tape acceleration and
+automatic leader padding disabled. It checks every loaded native segment against
+the released binary, then verifies arithmetic, arrays, strings, IF, FOR/NEXT,
+GOSUB/RETURN and a marker computed from stored array values. XRoar supplies
+automatic keyboard entry; our JavaScript CPU, memory and tape implementations
+are not involved. See `build/xroar-acceptance.json` and
+[independent-emulator setup](XROAR.md).
+
 Historical Blackjack has two complete original/C/py65/native transcript checks
 and a separate cassette game session. See [demos](../demos/README.md).
 
@@ -119,6 +151,10 @@ The selected 4 KiB Replica 1 reference image remains byte-for-byte frozen; its
 provenance has not been authenticated against a particular surviving 1976 BASIC
 cassette. This port targets that exact image, not every Apple-1/Apple-II variant.
 
+The tested host profile is Color BASIC 1.3 plus Extended BASIC 1.1, with no disk
+cartridge. The low RAM code placement is intended for the cassette application;
+Disk BASIC workspace compatibility and disk-image packaging are not established.
+
 PEEK/POKE/CALL addresses, usable memory bounds, screen width and keyboard hardware
 are CoCo adaptations. Instruction counts and real-time speed differ by CPU.
 Original Apple cassette-interface commands and machine-code games are not
@@ -126,7 +162,7 @@ implemented. Some malformed accepted expressions depend on the oracle's unbacked
 memory policy and are documented/tested as platform quirks.
 
 The CoCo ROM's loading and execution paths are tested in this emulator, including
-actual PCM input with shortcuts disabled. An electrical playback test on a real
-CoCo and an independent emulator remains useful hardware validation; no physical
+actual PCM input with shortcuts disabled, and independently in XRoar. An
+electrical playback test on a real CoCo remains unverified; no physical
 machine test is claimed here. Use a normal CoCo cassette cable/audio source for
 WAV playback and adjust volume as appropriate for that hardware.
