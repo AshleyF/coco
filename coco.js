@@ -226,6 +226,8 @@ document.getElementById('tapeFile')?.addEventListener('change', async (e) => {
 // Both local files and the software library mount the same cassette device.
 // Library entries contain instructions, never an automatic CLOADM/EXEC sequence.
 const softwareTapes = {
+    'integer-basic64': {path: 'software/integer-basic64.cas', name: '64K Integer BASIC', instructions: 'At Color BASIC’s OK prompt, type CLOADM, wait for OK, then EXEC. Next mount the Mayfield program tape.'},
+    'mayfield-program': {path: 'software/mayfield-program.cas', name: 'Mayfield Star Trek program', instructions: 'In the 64K Integer BASIC build, type LOAD "MIKETREK", wait for LOADED, then RUN. Course and warp inputs use tenths.'},
     'integer-basic': {path: 'software/integer-basic.cas', name: 'Integer BASIC', instructions: 'At Color BASIC’s OK prompt, type CLOADM, wait for OK, then EXEC.'},
     'star-trek-program': {path: 'software/star-trek-program.cas', name: 'Apple Star-Trek program', instructions: 'In Integer BASIC, enter HIMEM=27904, then LOAD "STARTREK". Wait for LOADED, then RUN.'},
     'blackjack-program': {path: 'software/blackjack-program.cas', name: 'Blackjack program', instructions: 'In Integer BASIC, type LOAD "BLACKJAK", wait for LOADED, then RUN.'},

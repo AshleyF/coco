@@ -324,12 +324,22 @@
         </div>
         <div class="software-item">
             <h3>Apple Star-Trek (1977)</h3>
-            <p>Robert J. Bishop's Apple-1 BASIC game. Explore, scan and battle Klingons.</p>
+            <p>Based on Mike Mayfield's original Star Trek, adapted for Apple-1 BASIC by Robert J. Bishop. Explore, scan and battle Klingons.</p>
             <p>Start Integer BASIC using its tape above, then mount this program tape.</p>
             <button type="button" data-library-tape="star-trek-program">Mount Star Trek program tape</button>
             <p>In Integer BASIC: <code>HIMEM=27904</code>, then <code>LOAD "STARTREK"</code>. Wait for <code>LOADED</code>, then <code>RUN</code>.</p>
             <p>Enter <code>1</code> at “TYPE A NUMBER”. Commands: <code>1</code> short scan, <code>2</code> long scan, <code>5</code> computer. Initialization takes time. The original scan layout fits the 40×24 terminal.</p>
             <p><a href="ports/integer-basic/demos/STAR-TREK.md" target="_blank" rel="noopener">Commands &amp; historical sources</a></p>
+        </div>
+        <div class="software-item">
+            <h3>Mike Mayfield's Star Trek</h3>
+            <p>Our Integer BASIC adaptation of Mike Mayfield's HP listing. Original attribution is retained; course and warp inputs use tenths.</p>
+            <button type="button" data-library-tape="integer-basic64">Mount 64K Integer BASIC tape</button>
+            <p>Start at Color BASIC's <code>OK</code> prompt (Reset if needed). Type <code>CLOADM</code>, wait for <code>OK</code>, then <code>EXEC</code>. This larger game requires the 64K build.</p>
+            <button type="button" data-library-tape="mayfield-program">Mount Mayfield Star Trek program tape</button>
+            <p>In 64K Integer BASIC: <code>LOAD "MIKETREK"</code>, wait for <code>LOADED</code>, then <code>RUN</code>. Answer <code>YES</code> or <code>NO</code> for instructions. Course <code>15</code> means 1.5; warp <code>2</code> means 0.2.</p>
+            <p>At normal CoCo speed, the first mission takes about 2½ minutes to initialize and draw its board.</p>
+            <p><a href="ports/integer-basic/demos/mayfield/README.md" target="_blank" rel="noopener">Original, commented and compact listings &amp; adaptation notes</a></p>
         </div>
         <p id="software-message" role="status" aria-live="polite"></p>
     </section>
@@ -337,6 +347,6 @@
     <div style="margin-top:0.5em;font-size:0.65em;color:#444;">
         ROMs &amp; software: <a href="https://colorcomputerarchive.com" target="_blank" style="color:#484;">colorcomputerarchive.com</a>
     </div>
-    <script type="module" src="coco.js?v=separate-program-tapes-1"></script>
+    <script type="module" src="coco.js?v=mayfield-64k-1"></script>
 </body>
 </html>

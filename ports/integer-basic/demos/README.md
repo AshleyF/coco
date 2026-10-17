@@ -1,5 +1,10 @@
 # Historical Apple-1 demos
 
+Mike Mayfield’s HP **STTR1** is now preserved alongside a separate, commented
+[Integer BASIC adaptation](mayfield/README.md). Its compact, attributed deployment copy runs in the native **64K CoCo build**,
+with separate interpreter and program tapes.
+The website’s playable Star Trek is still the distinctly named Bishop version.
+
 Blackjack (also called **21**) is our first recovered historical game. This is
 the Apple-1 BASIC game, not a newly written imitation. Its author is unknown.
 

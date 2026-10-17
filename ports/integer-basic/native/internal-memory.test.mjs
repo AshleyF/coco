@@ -3,22 +3,23 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CoCo} from '../../../coco-machine.js';
 import {readSymbols} from './console-runner.mjs';
-const graphics=process.argv.includes('--graphics'),profile=graphics?'graphics':'prompt',reloc=graphics?0x1000:0;
+const large=process.argv.includes('--large'),graphics=large||process.argv.includes('--graphics'),profile=large?'graphics64':graphics?'graphics':'prompt',reloc=graphics?0x1000:0;
 const s=readSymbols(readFileSync(`build/${profile}.sym`,'utf8')),m=new CoCo();
 m.loadDECB(readFileSync(`build/${profile}.bin`),{execute:false});
+if(large)m.sam.bits|=0x8000;
 const c=m.cpu,ram=m.mem.ram;
 let count=0;
 for(const write of [false,true])for(let address=0;address<65536;address++)for(const flags of [0,1,2,15]){
  const privateRAM=address>=0x4000+reloc&&address<0x4300+reloc;
  const grammar=address>=0x4c00+reloc&&address<0x4e00+reloc;
- const arena=address>=0x5000+reloc&&address<0x7000;
+ const arena=address>=0x5000+reloc&&address<(large?0xa000:0x7000);
  const readable=privateRAM||grammar||arena,writable=privateRAM||arena;
  const byte=(address^0x5a)&255;
  if(readable)ram[address]=byte;
  const before=ram[address];
  c.pc=s[write?'t_write_internal':'t_read_internal'];c.dp=graphics?0x50:0x40;c.u=0x4080+reloc;
  // Keep the test's own return address/CC pushes away from the address probed.
- const stack=address>=0x7eed&&address<=0x7eef?0x7ec0:0x7ef0;
+ const stack=large?(address>=0xfeed&&address<=0xfeef?0xfec0:0xfef0):(address>=0x7eed&&address<=0x7eef?0x7ec0:0x7ef0);
  c.a=0xa5;c.b=0x6b;c.x=address;c.s=stack;c.pushS16(0x7fff);c.cc=0x50|flags;
  let steps=0;while(c.pc!==0x7fff&&steps++<100)c.step();
  assert.ok(steps<100,'Guard did not return');

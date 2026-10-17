@@ -55,7 +55,13 @@ speed; the dealer turn can take about 19 seconds. See the
 Load Integer BASIC first, then mount a separate game program tape. Wait for `OK`
 after `CLOADM` and `LOADED` after `LOAD` before entering the next command.
 
-The three website tapes live in `software/`, so static hosting does not require
+For **Mike Mayfield’s Star Trek**, use its separate **64K Integer BASIC** tape
+first (`CLOADM`, wait for `OK`, `EXEC`), then mount its program tape and enter
+`LOAD "MIKETREK"`, wait for `LOADED`, and `RUN`. Navigation inputs use tenths.
+The original HP listing, commented adaptation, and compact deployment source
+are [preserved together](ports/integer-basic/demos/mayfield/README.md).
+
+The five website tapes live in `software/`, so static hosting does not require
 ignored build files. After changing the native port, run
 `make -C ports/integer-basic web-software` to regenerate them. See
 [software packaging](software/README.md).

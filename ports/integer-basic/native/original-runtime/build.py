@@ -6,7 +6,8 @@ Wozniak BASIC; disassembly copyright 2003 Eric Smith, ca65 by Jeff Tranter.
 """
 from pathlib import Path
 import re,hashlib,json,sys
-GRAPHICS="--graphics" in sys.argv
+LARGE="--large" in sys.argv
+GRAPHICS="--graphics" in sys.argv or LARGE
 from flags import analyze
 ROOT=Path(__file__).resolve().parents[2]
 rom=(ROOT/'reference/a1basic.bin').read_bytes()
@@ -194,7 +195,7 @@ for address,label,op,s in lines:
     if op=='LDA':
         # Same initial 2 KiB program/variable capacity as the reference's
         # $0800..$0FFF arena. HIMEM may expand it within native reserved bounds.
-        if current=='mem_init_4k' and s in ('#$08','#$10'):s=('#$60' if s=='#$08' else '#$68') if GRAPHICS else ('#$50' if s=='#$08' else '#$58')
+        if current=='mem_init_4k' and s in ('#$08','#$10'):s=('#$60' if s=='#$08' else ('#$a0' if LARGE else '#$68')) if GRAPHICS else ('#$50' if s=='#$08' else '#$58')
         get_a(s)
     elif op=='STA':store_a(s)
     elif op=='LDX':
@@ -368,15 +369,27 @@ if GRAPHICS:
         't_native_engine_end\n        include "../native/graphics-terminal.asm"\nt_code_end\n        include "graphics-tape.inc"')
     assembly=assembly.replace('t_key_read_return\n        beq t_wait_key',
         't_key_read_return\n        bne t_have_key\n        jsr gt_tick\n        bra t_wait_key')
-    (ROOT/'build/graphics-runtime.asm').write_text(assembly)
+    profile='graphics64' if LARGE else 'graphics'
+    if LARGE:
+        assembly=assembly.replace('$7000','$a000')
+        assembly=assembly.replace('lda #$7e\n        addd #1','lda #$fe\n        addd #1')
+        assembly=assembly.replace('        jsr gt_init','        jsr t_large_init\n        lds #$ff00\n        jsr gt_init',1)
+        assembly=assembly.replace('graphics-tape.inc','graphics64-tape.inc')
+        assembly=assembly.replace('../native/graphics-terminal.asm','graphics64-terminal.inc')
+        terminal=(ROOT/'native/graphics-terminal.asm').read_text().replace('graphics-font.inc','graphics64-font.inc')
+        (ROOT/'build/graphics64-terminal.inc').write_text(terminal)
+        assembly=assembly.replace('t_native_engine_end\n', '        include "../native/large-memory.asm"\nt_native_engine_end\n')
+    (ROOT/f'build/{profile}-runtime.asm').write_text(assembly)
     tape=graphics_relocate((ROOT/'native/tape.asm').read_text())
     tape=tape.replace('lda #$40','lda #$50')
-    (ROOT/'build/graphics-tape.inc').write_text(tape)
+    if LARGE:
+        tape=tape.replace('tt_stage equ $7000','tt_stage equ $c000').replace('tt_max equ $0e00','tt_max equ $3e00')
+    (ROOT/f'build/{profile}-tape.inc').write_text(tape)
     font=json.loads((ROOT/'native/terminal-font.json').read_text())
-    (ROOT/'build/graphics-font.inc').write_text('gt_font\n'+'\n'.join('        fcb '+','.join(f'${v:02x}' for v in row) for row in font)+'\n')
+    (ROOT/f'build/{profile}-font.inc').write_text('gt_font\n'+'\n'.join('        fcb '+','.join(f'${v:02x}' for v in row) for row in font)+'\n')
 else:
     (ROOT/'build/runtime-prototype.asm').write_text('\n'.join(out))
-(ROOT/('build/graphics-optimization.json' if GRAPHICS else 'build/runtime-optimization.json')).write_text(json.dumps({
+(ROOT/('build/graphics64-optimization.json' if LARGE else 'build/graphics-optimization.json' if GRAPHICS else 'build/runtime-optimization.json')).write_text(json.dumps({
     'live_in':live_in,'live_out':live_out,'carry_entries':carry_entries,
     'scope':'Conservative flag liveness; calls and unknown control-flow retain flags'
 },indent=2)+'\n')

@@ -20,7 +20,7 @@ CoCo ROM's normal display.
 make native-graphics graphics-demos
 make graphics-test
 make graphics-xroar-test   # optional installed XRoar
-make web-software         # refresh the three packaged website cassettes
+make web-software         # refresh the five packaged website cassettes
 ```
 
 The outputs are `build/graphics.bin/.cas/.wav`,
@@ -130,3 +130,13 @@ Hardware references: [Tandy Color Computer Technical Reference, video modes](htt
 [Tandy Color Computer 3 Service Manual](https://colorcomputerarchive.com/coco/Documents/Manuals/Hardware/Color%20Computer%203%20Service%20Manual%20%28Tandy%29.pdf), whose SAM register map documents the compatible mode/offset controls.
 A fresh parallel build reproduces all nine graphics BIN/CAS/WAV artifacts and
 all five packaged website tapes (`build/graphics-clean-build.json`).
+
+
+## Optional 64K build
+
+The separate `make native-large` profile supports the larger
+[Mayfield Star Trek adaptation](../demos/mayfield/README.md). It retains this
+40×24 renderer and uses real SAM all-RAM mode, a native ROM-copy bootstrap,
+a 16 KiB arena, and expanded cassette staging. It requires 64K RAM; the standard
+32K profile and its binary remain unchanged. See the linked memory map and
+verification limits before selecting a hardware target.

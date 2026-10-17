@@ -5,6 +5,8 @@ tracked website assets; the site works without `ports/integer-basic/build/`.
 
 | File | Contents | Commands |
 | --- | --- | --- |
+| `integer-basic64.cas` | Native 64K build for the larger Mayfield game | Color BASIC: `CLOADM`, `EXEC` |
+| `mayfield-program.cas` | Mike Mayfield HP Star Trek adapted to Integer BASIC | **64K** Integer BASIC: `LOAD "MIKETREK"`, `RUN` |
 | `integer-basic.cas` | Native MC6809 Apple-1 Integer BASIC | Color BASIC: `CLOADM`, `EXEC` |
 | `blackjack-program.cas` | Blackjack program only | Integer BASIC: `LOAD "BLACKJAK"`, `RUN` |
 | `star-trek-program.cas` | Star Trek program only | Integer BASIC: `HIMEM=27904`, `LOAD "STARTREK"`, `RUN` |
@@ -16,7 +18,7 @@ Load Integer BASIC first with its application tape. Once its `>` prompt appears,
 mount a game program tape and use `LOAD`. Wait for `OK` after `CLOADM` and
 `LOADED` after `LOAD`. BASIC and games use separate tapes.
 
-Regenerate all three cassettes after changing the native implementation or game:
+Regenerate all five cassettes after changing the native implementation or game:
 
 ```sh
 make -C ports/integer-basic web-software

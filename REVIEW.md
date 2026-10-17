@@ -14,7 +14,7 @@ Validation: `node tests/cpu.test.node.js` — 183/183 pass. Initially 181/182 pa
 1. **CWAI double-stacks state.** `cpu.js` pushes the entire state in the CWAI handler, but `checkInterrupts()` pushes another frame when accepting IRQ/FIRQ/NMI. An RTI then restores the wrong continuation/stack position. CWAI needs a distinct pre-stacked wait state; interrupt entry must reuse that frame (including full-state return for FIRQ).
 2. **Interrupt dispatch is detached from instruction execution.** `step()`/`run()` never sample interrupt lines. `coco.js` checks IRQ once at frame start and immediately clears the CPU IRQ line, even if the PIA still has a pending flag. An IRQ masked at frame start cannot be accepted when code unmasks it later in that frame. Derive persistent CPU lines from peripheral flags and sample at instruction boundaries. Account for entry cycles in the scheduler.
 3. **SYNC wakeup is incomplete.** It shares `waitingForInterrupt` with CWAI and only resumes when an unmasked interrupt is accepted. A masked interrupt should release SYNC without taking a vector. Distinguish synchronization from CWAI wait behavior.
-4. **64K RAM mapping is absent.** `Memory` always exposes BASIC ROM at $8000-$BFFF, blocks writes there, and ignores SAM TY/page configuration. The allocated 64K array is not equivalent to a 64K CoCo memory map. Implement and verify RAM/ROM overlays and vector behavior before using upper RAM for the port.
+4. **SAM page/RAM-size addressing remains incomplete.** SAM TY all-RAM selection, high RAM reads/writes, ROM/cartridge overlays, vectors and reset map restoration were added and tested on 2026-10-17 for the native 64K profile. The page bit and physical RAM-size aliasing are still not modeled; this is not a full SAM conformance claim.
 5. **PIA inputs are treated as levels rather than transitions.** `setCA1`/`setCB1` latch flags each time the requested level matches polarity, without remembering the prior level. Reading a flag clear then submitting an unchanged input can spuriously interrupt. CA2/CB2 interrupt and handshake modes are also incomplete.
 
 ## Other limits relevant to validation
@@ -71,3 +71,21 @@ game and ROM are unchanged. See [measurements and safeguards](ports/integer-basi
 These changes optimize the native application, not the emulator's interrupt,
 PIA or RAM-mapping issues listed above. The CPU and joystick regression suites
 still pass; independent XRoar checks also run the optimized native binary.
+
+
+## 64K native game support — 2026-10-17
+
+The emulator now honors SAM TY ($FFDE/$FFDF) ROM/RAM selection while retaining
+PIA/SAM I/O decoding. The reset path restores ROM visibility before fetching the
+CPU reset vector. High RAM/ROM/cartridge/vector/I/O checks are in
+`tests/memory-map.test.node.mjs`; CPU 187/187 and joystick regressions pass.
+The existing 32K Integer BASIC binary is unchanged.
+
+The separate native 64K build copies ROM and vectors into RAM, expands its arena
+to $6000..$9FFF, stages program tapes at $C000..$FDFF and moves the native stack
+to $FE00..$FEFF. Both the initial LDS and translated TXS use the new stack area.
+Independent XRoar 64K CAS/WAV console and stored-program tests pass. Mayfield's
+compact game passes original-ROM/native transcript comparisons and separate
+application/program cassette loading through the ROM decoder, with shortcuts
+disabled. Physical hardware remains untested. Page-bit addressing, RAM-size
+aliasing, interrupts and other outstanding PIA issues remain separate findings.

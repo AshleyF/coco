@@ -26,6 +26,8 @@ export class Memory {
         if (addr >= 0xFFC0 && addr <= 0xFFDF) {
             return 0xFF;
         }
+        // SAM TY=1 selects RAM under ROM; I/O above remains decoded.
+        if (this.sam && (this.sam.bits & 0x8000)) return this.ram[addr];
         // Cartridge ROM ($C000-$FFEF)
         if (addr >= 0xC000 && addr <= 0xFEFF && this.cartrom) {
             const offset = addr - 0xC000;
@@ -62,6 +64,10 @@ export class Memory {
         // SAM registers
         if (addr >= 0xFFC0 && addr <= 0xFFDF && this.sam) {
             this.sam.write(addr, val);
+            return;
+        }
+        if (this.sam && (this.sam.bits & 0x8000)) {
+            this.ram[addr] = val;
             return;
         }
         // ROM areas are read-only

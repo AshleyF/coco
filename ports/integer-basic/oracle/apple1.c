@@ -9,6 +9,7 @@
 #include "vendor/wozmon.h"
 
 static uint8_t memory[65536], pending;
+static unsigned long ram_top = 0x1000; /* Default oracle contract unchanged. */
 static unsigned long instructions;
 static unsigned long budget = 100000000;
 static unsigned long hits[4096], reads[4096];
@@ -88,7 +89,7 @@ uint8_t w8(struct cpu *cpu, uint16_t address, uint8_t value) {
         if (putchar(ch) == EOF || fflush(stdout) == EOF) {
             perror("stdout"); exit(1);
         }
-    } else if (address < 0x1000 ||
+    } else if (address < ram_top ||
                (address >= 0xd010 && address <= 0xd013)) {
         memory[address] = value;
     }
@@ -121,6 +122,14 @@ int main(int argc, char **argv) {
         if (*end || !event_key || event_key > 127) {
             fprintf(stderr, "event key must be ASCII 1..127\n");
             return 1;
+        }
+    }
+    const char *ram_setting = getenv("APPLE1_RAM_TOP");
+    if (ram_setting) {
+        char *ram_end;
+        ram_top = strtoul(ram_setting, &ram_end, 0);
+        if (*ram_end || ram_top < 0x1000 || ram_top > 0xd000) {
+            fprintf(stderr, "APPLE1_RAM_TOP must be 0x1000..0xd000\n"); return 1;
         }
     }
     rom = fopen(argv[1], "rb");

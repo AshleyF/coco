@@ -1,0 +1,213 @@
+from pathlib import Path
+import re
+root=Path(__file__).resolve().parent
+lines={}
+for line in (root/'STTR1.original.bas').read_text().splitlines():
+ m=re.match(r'^(\d+)\s+(.*)$',line)
+ if m:lines[int(m[1])]=m[2]
+# Explicit source-line replacements. HP line numbers remain navigation anchors.
+r={
+240:'DIM Z$(72):Z$="                                                                      "',
+260:'DIM G(64),C(18),K(9),N(3),Z(64),D(8)',
+270:'DIM C$(6),D$(72),E$(24),A$(3),Q$(72),R$(72),S$(48)',280:'REM ARRAYS ARE ONE DIMENSIONAL; STRINGS USE PARENTHESES',
+290:'T0=(RND(20)+20)*100:T=T0',360:'REM DISTANCE FUNCTION REPLACED BY SUBROUTINE 7200',
+370:'Q1=RND(8)+1',380:'Q2=RND(8)+1',390:'S1=RND(8)+1',400:'S2=RND(8)+1',
+410:'REM HP CLOCK OMITTED; MISSION STILL USES STARDATES',
+420:'C(3)=-1:C(5)=-1:C(7)=-1:C(8)=-1:C(10)=-1:C(12)=-1',
+430:'C(1)=0:C(6)=0:C(9)=0:C(14)=0:C(17)=0',
+440:'C(2)=1:C(4)=1:C(11)=1:C(13)=1:C(15)=1:C(16)=1:C(18)=1',
+450:'FOR I=1 TO 8:D(I)=0:NEXT I',
+520:'R1=RND(100)',530:'IF R1>98 THEN 580',540:'IF R1>95 THEN 610',550:'IF R1>80 THEN 640',
+660:'R1=RND(100)',670:'IF R1>96 THEN 700',720:'S3=RND(8)+1',
+810:'K3=0:B3=0:S3=0',830:'X=G((Q1-1)*8+Q2)',840:'K3=X/100',850:'B3=X MOD 100/10',860:'S3=X MOD 10',
+910:'FOR I=1 TO 9:K(I)=0:NEXT I',
+1290:'IF A<0 OR A>7 THEN 1300:GOTO 1410*(A=0)+1260*(A=1)+2330*(A=2)+2530*(A=3)+2800*(A=4)+3460*(A=5)+3560*(A=6)+4630*(A=7)',
+1410:'PRINT "COURSE 10-89 (15 MEANS 1.5):";',1440:'IF C1<10 OR C1>=90 THEN 1410',
+1450:'PRINT "WARP 0-80 (10 MEANS WARP 1):";',1470:'IF W1<0 OR W1>80 THEN 1410',1480:'IF D(1)>=0 OR W1<=2 THEN 1510',
+1630:'D(I)=D(I)+10',1650:'IF RND(100)>20 THEN 1810',1660:'R1=RND(8)+1',1670:'IF RND(100)>=50 THEN 1750',
+1680:'D(R1)=D(R1)-(RND(50)+10)',1750:'D(R1)=D(R1)+(RND(50)+10)',
+1810:'N=W1*8/10',1880:'Y=S2:S1=S1*10:S2=S2*10',1885:'C2=C1/10',
+1890:'X1=C((C2-1)*2+1)*10+(C(C2*2+1)-C((C2-1)*2+1))*(C1 MOD 10)',
+1900:'X2=C((C2-1)*2+2)*10+(C(C2*2+2)-C((C2-1)*2+2))*(C1 MOD 10)',
+1940:'IF S1<5 OR S1>=85 OR S2<5 OR S2>=85 THEN 2170',1960:'Z1=(S1+5)/10',1970:'Z2=(S2+5)/10',
+2030:'PRINT "WARP ENGINES SHUTDOWN AT SECTOR ";(S1+5)/10;",";(S2+5)/10',
+2083:'S1=(S1+5)/10',2086:'S2=(S2+5)/10',2130:'IF W1<10 THEN 2150',
+2170:'X=(Q1*8+X)*10+X1*N',2180:'Y=(Q2*8+Y)*10+X2*N',2190:'Q1=X/80',2200:'Q2=Y/80',
+2210:'S1=(X-Q1*80+5)/10',2220:'S2=(Y-Q2*80+5)/10',
+2370:'PRINT "LONG RANGE SCAN QUADRANT ";Q1;",";Q2',2380:'PRINT "-----------------"',2400:'FOR J=1 TO 3:N(J)=0:NEXT J',
+2470:'PRINT ": ";:FOR V0=1 TO 3:V1=N(V0):GOSUB 7400:PRINT " :";:NEXT V0:PRINT',2480:'PRINT "-----------------"',
+2700:'GOSUB 7200:HB=(X/K3)*10/DD:GOSUB 7300',
+2720:'PRINT H;" HIT ON KLINGON ";K((I-1)*3+1);",";K((I-1)*3+2):PRINT K((I-1)*3+3);" LEFT"',
+2860:'PRINT "TORPEDO COURSE 10-89:";',2890:'IF C1<10 OR C1>=90 THEN 2860',2895:'C2=C1/10',
+2900:'X1=C((C2-1)*2+1)*10+(C(C2*2+1)-C((C2-1)*2+1))*(C1 MOD 10)',
+2910:'X2=C((C2-1)*2+2)*10+(C(C2*2+2)-C((C2-1)*2+2))*(C1 MOD 10)',
+2920:'X=S1*10',2930:'Y=S2*10',2980:'IF X<5 OR X>=85 OR Y<5 OR Y>=85 THEN 3420',
+2990:'PRINT "   ";(X+5)/10;",";(Y+5)/10',3020:'Z1=(X+5)/10',3030:'Z2=(Y+5)/10',
+3080:'Z1=(X+5)/10',3090:'Z2=(Y+5)/10',3170:'IF (X+5)/10#K((I-1)*3+1) THEN 3190',3180:'IF (Y+5)/10=K((I-1)*3+2) THEN 3200',
+3240:'Z1=(X+5)/10',3250:'Z2=(Y+5)/10',3300:'Z1=(X+5)/10',3310:'Z2=(Y+5)/10',
+3370:'Z1=(X+5)/10',3380:'Z2=(Y+5)/10',3630:'IF D(R1)<0 THEN PRINT "-";:PRINT ABS(D(R1))/10;".";ABS(D(R1)) MOD 10',
+3690:'PRINT "KLINGON AT SECTOR ";K((I-1)*3+1);",";K((I-1)*3+2);" DESTROYED"',
+3850:'GOSUB 7200:HB=K((I-1)*3+3)*10/DD:GOSUB 7300',
+3870:'PRINT H;" HIT ON ENTERPRISE AT ";K((I-1)*3+1);",";K((I-1)*3+2):PRINT S;" SHIELDS LEFT"',
+4080:'PRINT "EFFICIENCY = ";:IF T=T0 THEN PRINT "NO ELAPSED STARDATES":GOTO 4110',
+4085:'PRINT K7*100/(T-T0)*10',4090:'REM HP ELAPSED WALL CLOCK HAS NO APPLE-1 EQUIVALENT',4100:'REM STARDATE DEADLINE IS UNCHANGED',
+4320:'IF E<E0/10 THEN 4370',4430:'GOSUB 7000',
+4680:'IF A<0 OR A>2 THEN 4690:GOTO 4740*(A=0)+4830*(A=1)+4880*(A=2)',
+4740:'PRINT "GALAXY RECORD QUADRANT ";Q1;",";Q2',4760:'PRINT "    1   2   3   4   5   6   7   8"',4770:'PRINT "---------------------------------"',
+4790:'PRINT I;:FOR V0=1 TO 8:V1=Z((I-1)*8+V0):PRINT " ";:GOSUB 7400:NEXT V0:PRINT',4800:'PRINT "---------------------------------"',
+4830:'PRINT:PRINT "STATUS REPORT":PRINT',
+4970:'PRINT "QUADRANT ";Q1;",";Q2;" SECTOR ";S1;",";S2',
+5090:'V1=10+(2*ABS(A)-ABS(X))*10/ABS(A):GOSUB 7500',5110:'V1=10+ABS(A)*10/ABS(X):GOSUB 7500',
+5210:'V1=C1*10+(2*ABS(X)-ABS(A))*10/ABS(X):GOSUB 7500',5230:'V1=C1*10+ABS(X)*10/ABS(A):GOSUB 7500',
+5240:'DX=X:DY=A:GOSUB 7220:PRINT "DISTANCE = ";DD/10;".";DD MOD 10',
+5380:'R1=RND(8)+1',5390:'R2=RND(8)+1',5683:'REM CALLERS PROVIDE ROUNDED SECTOR COORDINATES',5686:'REM INTEGER-ONLY STRING SUBSCRIPTS',
+5880:'PRINT "COURSE USES TENTHS: 10=1, 15=1.5"',5890:'PRINT " 40 30 20"',5900:'PRINT "  \\ | /"',5910:'PRINT "50--*--10"',5920:'PRINT "  / | \\"',5930:'PRINT " 60 70 80"',5940:'PRINT "COURSE MUST BE 10 THROUGH 89"',5950:'PRINT "WARP USES TENTHS: 10=1, 2=.2"',
+5960:'PRINT "WARP RANGE 0 THROUGH 80"',5990:'PRINT "FROM QUADRANT 6,5 TO 5,5 USE"',6000:'PRINT "COURSE 30, WARP 10"',
+}
+# PRINT USING images become ordinary output; retain their original descriptions
+# as REMs so the original presentation remains traceable.
+for n,body in list(lines.items()):
+ if body.startswith('IMAGE'):
+  r[n]='REM HP '+body
+for n in range(4440,4530,10):r[n]='REM SCAN AND STATUS PRINTED BY SUBROUTINE 7000'
+lines.update(r)
+# Keep every original REM. New implementation notes reside at unused lines.
+lines.update({
+8:'REM ADAPTED FOR WOZ INTEGER BASIC; ORIGINAL HP SOURCE KEPT SEPARATELY',
+9:'REM MAYFIELD GAME; THIS IS NOT THE BISHOP MINI-STARTREK VERSION',
+11:'REM COURSES AND WARP INPUTS ARE TENTHS: 15 MEANS 1.5',
+12:'REM DAMAGE STATE USES TENTHS; ENERGY AND SHIELDS USE WHOLE UNITS',
+13:'REM INTEGER RNG USES HUNDREDTH BINS; IT IS NOT THE HP RANDOM SEQUENCE',
+14:'REM ROUNDING AND HIT CALCULATIONS DIFFER FROM HP FLOATING POINT',
+15:'REM ARRAYS FLATTEN ROW BY ROW WITH ORIGINAL ONE-BASED INDICES',
+16:'REM HP FORMATTING REFLOWED FOR A FORTY COLUMN TERMINAL',
+17:'REM WALL CLOCK OMITTED; STARDATE LIMIT REMAINS',
+18:'REM HP INSTRUCTIONS BELOW RETAINED EXCEPT THE CHANGED INPUT UNITS',
+19:'REM NEGATIVE REPAIR STATES BELOW ARE PRINTED IN TENTHS',
+7000:'REM FORTY COLUMN SHORT SCAN; STATUS BELOW BOARD INSTEAD OF BESIDE',
+7010:'PRINT "---------------------------------"',
+7020:'FOR V0=1 TO 8:FOR V2=1 TO 8:V3=(V0-1)*24+(V2-1)*3+1',
+7030:'PRINT " ";:IF V3<=72 THEN PRINT Q$(V3,V3+2);:GOTO 7060',
+7040:'IF V3<=144 THEN PRINT R$(V3-72,V3-70);:GOTO 7060',
+7050:'PRINT S$(V3-144,V3-142);',7060:'NEXT V2:PRINT:NEXT V0',
+7070:'PRINT "---------------------------------"',7080:'PRINT "STARDATE ";T;" CONDITION ";C$',
+7090:'PRINT "QUADRANT ";Q1;",";Q2;" SECTOR ";S1;",";S2',
+7100:'PRINT "ENERGY ";E;" TORPEDOES ";P',7110:'PRINT "SHIELDS ";S:RETURN',
+7200:'REM DISTANCE TIMES TEN, FLOOR SQRT; MAXIMUM SECTOR DELTA IS SEVEN',
+7210:'DX=K((I-1)*3+1)-S1:DY=K((I-1)*3+2)-S2',
+7220:'DS=(DX*DX+DY*DY)*100:DD=0',
+7230:'IF (DD+1)*(DD+1)>DS THEN 7250',7240:'DD=DD+1:GOTO 7230',7250:'IF DD=0 THEN DD=1',7260:'RETURN',
+7300:'REM RANDOM HIT: SPLIT PRODUCT TO AVOID SIGNED 16-BIT OVERFLOW',
+7310:'RF=RND(200):H=(HB/100)*RF+(HB MOD 100)*RF/100:RETURN',
+7400:'REM THREE DIGITS WITHOUT HP IMAGE FORMATTING',
+7410:'PRINT V1/100;V1 MOD 100/10;V1 MOD 10;:RETURN',
+7500:'PRINT "DIRECTION = ";V1/10;".";V1 MOD 10:RETURN',
+})
+# Apple-1 requires DIM before INPUT, and disallows REDIM on a restart.
+lines.update({
+165:'DIM G(64),C(18),K(9),N(3),Z(64),D(8)',
+166:'DIM C$(6),D$(72),E$(24),A$(3),Q$(72),R$(72),S$(48),Z$(72),U$(72)',
+240:'Z$="'+' '*72+'"',
+260:'REM DIM MOVED BEFORE INITIAL INPUT; RESTART REUSES ARRAYS',
+270:'REM STRINGS DIMENSIONED AT 166; SUBSTRING STORES NEED SUFFIX SAVE',
+5540:'U$=Q$(S8+3):Q$(S8)=A$:Q$(S8+3)=U$',
+5570:'U$=R$(S8-69):R$(S8-72)=A$:R$(S8-69)=U$',
+5590:'U$=S$(S8-141):S$(S8-144)=A$:S$(S8-141)=U$',
+3630:'IF D(R1)<0 THEN PRINT "-";',
+3631:'PRINT ABS(D(R1))/10;".";ABS(D(R1)) MOD 10',
+1290:'REM HP GOTO OF FALLS THROUGH WHEN THE COMMAND IS OUT OF RANGE',
+})
+for k,target in enumerate([1410,1260,2330,2530,2800,3460,3560,4630]):
+ lines[1291+k]=f'IF A={k} THEN {target}'
+lines[1299]='GOTO 1300'
+# HP allows an assignment after the end of a string; Apple bounds checks the
+# read first. Only save a suffix when it exists, including at the final cell.
+lines.update({
+5540:'U$="":IF S8+2<72 THEN U$=Q$(S8+3)',
+5541:'Q$(S8)=A$:IF LEN(U$)>0 THEN Q$(S8+3)=U$',
+5570:'U$="":IF S8-70<72 THEN U$=R$(S8-69)',
+5571:'R$(S8-72)=A$:IF LEN(U$)>0 THEN R$(S8-69)=U$',
+5590:'U$="":IF S8-142<48 THEN U$=S$(S8-141)',
+5591:'S$(S8-144)=A$:IF LEN(U$)>0 THEN S$(S8-141)=U$',
+})
+lines.update({
+480:'E$="SHIELD CNTRLCOMPUTER    "',
+7030:'PRINT " ";:IF V3>72 THEN 7040',
+7031:'PRINT Q$(V3,V3+2);:GOTO 7060',
+7040:'IF V3>144 THEN 7050',7041:'PRINT R$(V3-72,V3-70);:GOTO 7060',
+4080:'PRINT "EFFICIENCY = ";:IF T#T0 THEN 4085',
+4081:'PRINT "NO ELAPSED STARDATES":GOTO 4110',
+5090:'V1=C1*10+(2*ABS(A)-ABS(X))*10/ABS(A):GOSUB 7500',
+5110:'V1=C1*10+ABS(A)*10/ABS(X):GOSUB 7500',
+})
+lines.update({
+20:'REM APPLE FOR IS POST-TESTED; HP ZERO-COUNT LOOPS ARE GUARDED',
+21:'REM HP FIXED STRING PADDING AND NONTRUNCATING STORES ARE EXPLICIT',
+22:'REM CALCULATOR H8 SET TO ONE; HP LISTING SET ZERO CAUSES BAD NEXT',
+520:'R1=RND(100)+1',660:'R1=RND(100)+1',1650:'IF RND(100)>=20 THEN 1810',
+1020:'IF K3=0 THEN 1120',1021:'FOR I=1 TO K3',
+1120:'IF B3=0 THEN 1190',1121:'FOR I=1 TO B3',
+1190:'IF S3=0 THEN 1260',1191:'FOR I=1 TO S3',
+1910:'IF N=0 THEN 2080',1911:'FOR I=1 TO N',
+5270:'H8=1',
+})
+lines.update({
+23:'REM INTEGER IF GUARDS ONE STATEMENT; MULTI-STATEMENT PATHS USE GOTO',
+24:'REM HIT AND EFFICIENCY PRODUCTS ARE SPLIT TO AVOID 16-BIT OVERFLOW',
+25:'REM CALCULATOR INPUTS ARE RESTRICTED TO SECTORS ONE THROUGH EIGHT',
+2700:'GOSUB 7200:V4=X/K3:HB=V4/DD*10+(V4 MOD DD)*10/DD:GOSUB 7300',
+4085:'PRINT K7*100/(T-T0);"0"',
+5001:'IF C1<1 OR C1>8 OR A<1 OR A>8 OR W1<1 OR W1>8 OR X<1 OR X>8 THEN 4990',
+})
+lines.update({
+26:'REM EXTRACTED FROM HP TAPE IMAGE 16-NOV-2003 BY PETE TURNBULL',
+27:'REM NEGATIVE GALACTIC POSITIONS USE FLOOR, NOT TRUNCATION',
+181:'PRINT "BY MIKE MAYFIELD, CENTERLINE ENGINEERING"',
+780:'PRINT "DESTROY ";K9;" KLINGONS IN ";T9;" STARDATES":PRINT "WITH ";B9;" STARBASES"',
+1580:'PRINT "YOU HAVE ";E;" UNITS OF ENERGY"',
+1590:'PRINT "YOUR SHIELDS HAVE ";S;" UNITS LEFT"',
+2590:'PRINT "PHASERS LOCKED. ENERGY AVAILABLE = ";E',
+3490:'PRINT "ENERGY AVAILABLE = ";E+S:PRINT "UNITS TO SHIELDS:";',
+3980:'PRINT "IT IS STARDATE ";T',4020:'PRINT "THERE ARE STILL ";K9;" KLINGONS"',
+4840:'PRINT "NUMBER OF KLINGONS LEFT = ";K9',
+4850:'PRINT "NUMBER OF STARDATES LEFT = ";(T0+T9)-T',
+4860:'PRINT "NUMBER OF STARBASES LEFT = ";B9',
+2191:'IF X<0 AND X MOD 80#0 THEN Q1=Q1-1',
+2201:'IF Y<0 AND Y MOD 80#0 THEN Q2=Q2-1',
+})
+lines.update({
+7211:'GOSUB 7220',7212:'IF DD=0 THEN DD=1',7213:'RETURN',
+7250:'RETURN',7260:'REM ZERO DISTANCE CLAMP APPLIES TO COMBAT ONLY',
+})
+# Translate only outside quotes/REM text.
+def code(body):
+ parts=re.split(r'("[^"]*")',body)
+ for i in range(0,len(parts),2):
+  s=parts[i]
+  s=s.replace('<>','#')
+  for old,new in [('DX','U0'),('DY','U1'),('DS','U2'),('DD','U3'),('HB','H0'),('RF','H1')]:
+   s=re.sub(r'\b'+old+r'\b',new,s)
+  s=re.sub(r'\b([GCZ])\[([^,\]]+),([^\]]+)\]',lambda m:f'{m[1]}(({m[2]}-1)*{2 if m[1]=="C" else 8}+{m[3]})',s)
+  s=re.sub(r'\bK\[([^,\]]+),([^\]]+)\]',r'K((\1-1)*3+\2)',s)
+  s=re.sub(r'([A-Z]\$?)\[([^\]]+)\]',r'\1(\2)',s)
+  s=re.sub(r'\bINT\s*\(','(',s)
+  # Expand simple chained scalar assignments, not expressions or comparisons.
+  m=re.fullmatch(r'((?:[A-Z][0-9]?=){2,})([^=]+)',s)
+  if m:
+   names=m[1].split('=')[:-1]; s=':'.join(n+'='+m[2] for n in reversed(names))
+  parts[i]=s
+ return ''.join(parts)
+out=[]
+for n,body in sorted(lines.items()):
+ if not body.startswith('REM'):body=code(body)
+ # HP PRINT permits adjacent strings/numbers without separators.
+ if not body.startswith('REM') and 'PRINT' in body:
+  # Use the simpler quote tokenizer also used above; literals contain no escaped quotes.
+  chunks=re.split(r'("[^"]*")',body)
+  for j in range(1,len(chunks),2):
+   if chunks[j-1].rstrip() and re.search(r'[A-Z0-9)]$',chunks[j-1].rstrip()) and not chunks[j-1].rstrip().endswith('PRINT'):
+    chunks[j-1]+=';'
+   if j+1<len(chunks) and re.match(r'[A-Z0-9(]',chunks[j+1]):chunks[j+1]=';'+chunks[j+1]
+  body=''.join(chunks)
+ out.append(f'{n} {body}')
+(root/'STTR1.integer.bas').write_text('\n'.join(out)+'\n')

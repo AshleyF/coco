@@ -189,8 +189,10 @@ oracle-gap: behavior-test
 
 # Static website assets are tracked separately from ignored build diagnostics.
 .PHONY: web-software
-web-software: native-graphics build/blackjack-program.cas build/star-trek-program.cas
+web-software: native-graphics build/blackjack-program.cas build/star-trek-program.cas mayfield-tapes
 	mkdir -p ../../software
+	cp build/graphics64.cas ../../software/integer-basic64.cas
+	cp build/mayfield-program.cas ../../software/mayfield-program.cas
 	cp build/graphics.cas ../../software/integer-basic.cas
 	cp build/blackjack-program.cas ../../software/blackjack-program.cas
 	cp build/star-trek-program.cas ../../software/star-trek-program.cas
@@ -269,3 +271,42 @@ graphics-xroar-test: native-graphics
 	python3 native/xroar.test.py --xroar "$(XROAR)" --graphics
 	python3 native/tape-xroar.test.py --xroar "$(XROAR)" --graphics
 	BASIC_EXTERNAL_PROGRAM_WAV=build/graphics-xroar-program.wav node native/graphics-cassette.test.mjs
+
+# Mayfield's HP source and documented Integer BASIC adaptation. Full game needs
+# expanded Apple RAM; native target currently verifies only its helper routines.
+.PHONY: mayfield-source mayfield-test mayfield-crosscheck
+mayfield-source:
+	python3 demos/mayfield/adapt.py
+
+mayfield-test: build/apple1 native-graphics
+	python3 demos/mayfield/test.py
+	node demos/mayfield/native-subroutines.test.mjs
+
+mayfield-crosscheck: build/apple1 native-graphics
+	python3 demos/mayfield/test.py --crosscheck
+	node demos/mayfield/native-subroutines.test.mjs
+
+.PHONY: native-large
+native-large: all verify build/graphics64.bin build/graphics64.cas build/graphics64.wav
+build/graphics64-runtime.asm: native/original-runtime/build.py native/original-runtime/flags.py native/large-memory.asm native/tape.asm native/graphics-terminal.asm native/terminal-font.json build/a1basic.lst reference/a1basic.s reference/a1basic.bin
+	python3 native/original-runtime/build.py --large
+build/graphics64-tape.inc build/graphics64-font.inc build/graphics64-terminal.inc: build/graphics64-runtime.asm
+	@test -f $@ || python3 native/original-runtime/build.py --large
+build/graphics64.bin: build/graphics64-runtime.asm build/graphics64-tape.inc build/graphics64-font.inc build/graphics64-terminal.inc
+	$(LWASM) --6809 --format=decb --list=build/graphics64.lst --symbol-dump=build/graphics64.sym --output=$@ $<
+build/graphics64.cas: build/graphics64.bin native/cassette.mjs ../../cassette.js
+	node native/cassette.mjs $< $@
+build/graphics64.wav: build/graphics64.bin native/cassette.mjs ../../cassette.js
+	node native/cassette.mjs $< $@
+
+.PHONY: mayfield-tapes mayfield-compact-test
+mayfield-tapes: native-large build/mayfield-program.cas build/mayfield-program.wav
+build/mayfield-program.cas: demos/mayfield/STTR1.compact.bas demos/mayfield/tape-build.mjs build/graphics64.bin
+	node demos/mayfield/tape-build.mjs
+build/mayfield-program.wav: build/mayfield-program.cas
+	@test -f $@ || node demos/mayfield/tape-build.mjs
+demos/mayfield/STTR1.compact.bas: demos/mayfield/STTR1.integer.bas demos/mayfield/compact.py
+	python3 demos/mayfield/compact.py
+mayfield-compact-test: mayfield-tapes build/apple1
+	python3 demos/mayfield/test.py --compact --native-large
+	node demos/mayfield/cassette.test.mjs

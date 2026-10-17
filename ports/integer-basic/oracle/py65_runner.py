@@ -22,7 +22,10 @@ class InputFinished(Exception):
 
 
 class ConsoleMemory:
-    def __init__(self, source, event=None):
+    def __init__(self, source, event=None, ram_top=0x1000):
+        if not 0x1000 <= ram_top <= 0xd000:
+            raise ValueError("RAM top must be 0x1000..0xd000")
+        self.ram_top = ram_top
         self.data = bytearray(65536)
         self.data[0xe000:0xf000] = (ROOT/'reference/a1basic.bin').read_bytes()
         monitor = (ROOT/'oracle/vendor/wozmon.h').read_text()
@@ -64,12 +67,12 @@ class ConsoleMemory:
             if self.event and not self.event_ready:
                 self.event_tail = (self.event_tail+self.output[-1])[-len(self.event['after']):]
                 self.event_ready = self.event_tail == self.event['after']
-        elif address < 0x1000 or 0xd010 <= address <= 0xd013:
+        elif address < self.ram_top or 0xd010 <= address <= 0xd013:
             self.data[address] = value & 0xff
 
 
-def run(source, budget=10000000, event=None):
-    memory = ConsoleMemory(source,event)
+def run(source, budget=10000000, event=None, ram_top=0x1000):
+    memory = ConsoleMemory(source,event,ram_top)
     cpu = MPU(memory=memory,pc=0xe000)
     try:
         for _ in range(budget):

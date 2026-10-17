@@ -272,6 +272,7 @@ export class CoCo {
     }
 
     reset() {
+        this.sam.bits &= 0x7fff; // Hardware reset restores the ROM memory map.
         this.cpu.reset();
         this._cartStarted = false;
         this._cartBootFrames = undefined;

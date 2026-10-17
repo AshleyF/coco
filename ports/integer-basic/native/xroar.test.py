@@ -17,9 +17,11 @@ PROJECT=ROOT.parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--xroar',default='xroar')
 parser.add_argument('--graphics',action='store_true')
+parser.add_argument('--large',action='store_true')
 args=parser.parse_args()
-profile='graphics' if args.graphics else 'prompt'
-report_prefix='graphics-xroar' if args.graphics else 'xroar'
+args.graphics=args.graphics or args.large
+profile='graphics64' if args.large else 'graphics' if args.graphics else 'prompt'
+report_prefix='graphics64-xroar' if args.large else 'graphics-xroar' if args.graphics else 'xroar'
 symbols={m[1]:int(m[2],16) for line in (ROOT/f'build/{profile}.sym').read_text().splitlines()
          if (m:=re.fullmatch(r'(\w+) EQU \$([\da-f]+)',line,re.I))}
 binary=(ROOT/f'build/{profile}.bin').read_bytes()
@@ -42,7 +44,7 @@ for format_,(scenario,typed,expected) in product(['cas','wav'],scenarios):
     # Reject a stale snapshot left by an earlier successful run.
     if snapshot.exists():snapshot.unlink()
     command=[args.xroar,'-c','/dev/null','-ui','null','-ao','null','-vo','null',
-        '-machine','cocous','-ram','32','-bas',str(PROJECT/'roms/bas13.rom'),
+        '-machine','cocous','-ram','64' if args.large else '32','-bas',str(PROJECT/'roms/bas13.rom'),
         '-extbas',str(PROJECT/'roms/extbas11.rom'),'-nodos','-no-ratelimit',
         '-no-tape-fast','-no-tape-pad-auto','-load-tape',str(image),
         '-type',typed,
@@ -55,7 +57,7 @@ for format_,(scenario,typed,expected) in product(['cas','wav'],scenarios):
     assert run.returncode==0,(format_,run.stderr[-1000:])
     assert snapshot.exists(),f'{format_}: native POKE checkpoint never reached'
     ram=snapshot.read_bytes()
-    assert len(ram)==32768
+    assert len(ram)==(65536 if args.large else 32768)
     assert ram[1536]==42,f'{format_}: native execution marker missing'
     offset=0
     segments=0
